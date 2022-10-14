@@ -31,7 +31,7 @@ Last update: **12 Oct 2022**
   -  [Golden Ticket](#golden-ticket)
   -  [Silver Ticket](#silver-ticket)
   -  [Skeleton Key](#skeleton-key)
-  -  [Directory Services Restore Mode (DSRM)](#Directory-Services-Restore-Mode-(DSRM))
+  -  [Directory Services Restore Mode (DSRM)](#directory-services-restore-mode-dsrm))
   -  [DCSync](#dcsync)
 - [Privilege Escalation](#privilege-escalation)
   -  [Kerberoast](#kerberoast)
