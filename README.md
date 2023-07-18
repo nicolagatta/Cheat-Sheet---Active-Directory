@@ -279,26 +279,45 @@ Find-DomainShare -ExcludeStandard -ExcludePrint -ExcludeIPC -CheckShareAccess
 
 - **With PowerView:**
 ```powershell
+
 # Get the organizational units in a domain
 Get-NetOU
+
 # Get the organizational units in a domain with name
 Get-NetOU | select name
+
 # Get the organizational units in a domain with full data
 Get-NetOU -FullData                                                         
+
 # Get all computers from "ouiexample". Ouiexample --> organizational Units
 Get-NetOU "ouiexample" | %{Get-NetComputer -ADSpath $_}                     
+
 # Retrieve the list of GPOs present in the current domain
 Get-NetGPO
+
 # Retrieve the list of GPOs present in the current domain with displayname
 Get-NetGPO| select displayname
-# Get list of GPO in the target computer
+
+# Get list of GPO applied to a particular computer
 Get-NetGPO -ComputerName <ComputerName> | select displayname
-# Find users who have local admin rights over the machine
+
+# Find users who have local admin rights over the machine configured by some GPOs
 Find-GPOComputerAdmin –Computername <ComputerName>
-# Get machines where the given user in member of a specific group
-Find-GPOLocation -Identity <user> -Verbose
-# Enumerate GPO applied on the example OU
-Get-NetGPO -ADSpath 'LDAP://cn={example},CN=example'                        
+
+# Get machines where the given user is member of a specific group
+Find-GPOLocation -Username <user> -Verbose
+
+# Enumerate GPO applied on the example OU:
+# first get the gplink field from Get-NetOU
+# Then get the GPO information with
+Get-NetGPO -GPOName '{GUID_of_gplink}'                        
+
+# Retrieve the GPOs that set "Restricted group" on a machine
+Get-NetGPOGroup -ResolveMemberSIDs 
+
+# Get Group policy settings for a specific computer
+gpresult /R
+
 ```
 - **With AD Module:**
 ```powershell
@@ -310,20 +329,32 @@ Get-ADOrganizationalUnit -Filter * -Properties *
 
 - **With PowerView:**
 ```powershell
-# Enumerates the ACLs for the users group
+
+# Enumerates the ACLs for the users group (so the list of ACEs that applies to "Users" and resolve GUIDs of ACEs
+# ObjectDN is the target object
+# IdentityRefernce is the usr (or group) that has specific righs on ObjectDN
+# ActiveDirectoryRihts is the list of rights
+# AccessControlType: Allow or deny the rights
 Get-ObjectAcl -SamAccountName "users" -ResolveGUIDs                         
+
 # Enumerates the ACLs for the Domain Admins group
 Get-ObjectAcl -SamAccountName "Domain Admins" -ResolveGUIDs                 
+
 # Get the acl associated with a specific prefix
 Get-ObjectAcl -ADSprefix 'CN=Administrator,CN=Users' -Verbose               
-# Find interesting ACLs
+
+# Find interesting ACLs 
 Invoke-ACLScanner -ResolveGUIDs                                             
+
 # Check for modify rights/permissions for the user group
 Invoke-ACLScanner -ResolveGUIDs | ?{$_.IdentityReference -match "user"}     
+
 # Check for modify rights/permissions for the RDPUsers group
 Invoke-ACLScanner -ResolveGUIDs | ?{$_.IdentityReference -match "RDPusers"} 
+
 # Check for modify rights/permissions for the RDPUsers group
 Invoke-ACLScanner | select ObjectDN,ActiveDirectoryRights,IdentityReferenceName
+
 # Search of interesting ACL's for the current user
 Invoke-ACLScanner | Where-Object {$_.IdentityReference –eq [System.Security.Principal.WindowsIdentity]::GetCurrent().Name}
 ```
@@ -333,9 +364,11 @@ Invoke-ACLScanner | Where-Object {$_.IdentityReference –eq [System.Security.Pr
 - **With PowerView:**
 ```powershell
 # Get the list of all trusts within the current domain
-Get-NetDomainTrust                                                          
+Get-NetDomainTrust
+                     
 # Get the list of all trusts within the indicated domain
 Get-NetDomainTrust -Domain us.domain.corporation.local
+
 # Get the list of all trusts for each domain it finds
 Get-DomainTrustMapping
 ```
