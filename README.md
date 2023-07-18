@@ -413,10 +413,15 @@ Get-NetForestDomain -Verbose | Get-NetDomainTrust | ?{$_.TrustType -eq 'External
 
 - **With PowerView:**
 ```powershell
+
 # Find all machines on the current domain where the current user has local admin access
+# Use Get-NetComputer to retrieve list of computers and then Invoke-CheckLocalAdminAccess onto each machine
+# Alternative: Find-WMILocalAdminAccess
 Find-LocalAdminAccess -Verbose
+
 # Find local admins on all machines of the domain
 Find-DomainLocalGroupMember -Verbose
+
 # Enumerates the local group memberships for all reachable machines the <domain>
 Find-DomainLocalGroupMember -Domain <domain>
 # Looks for machines where a domain administrator is logged on
