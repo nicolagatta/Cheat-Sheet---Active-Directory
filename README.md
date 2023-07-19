@@ -301,16 +301,16 @@ Get-NetGPO| select displayname
 # Get list of GPO applied to a particular computer
 Get-NetGPO -ComputerName <ComputerName> | select displayname
 
-# Find users who have local admin rights over the machine configured by some GPOs
+# Find users who have local admin rights over the machine configured by a "Restricted groups" GPO
 Find-GPOComputerAdmin –Computername <ComputerName>
 
-# Get machines where the given user is member of a specific group
-Find-GPOLocation -Username <user> -Verbose
+# Get machines where the given user is member of a specific group "Restricted groups" GPO
+Find-GPOLocation -Identity <user> -Verbose
 
-# Enumerate GPO applied on the example OU:
-# first get the gplink field from Get-NetOU
-# Then get the GPO information with
-Get-NetGPO -GPOName '{GUID_of_gplink}'                        
+# Enumerate GPO applied on a specific OU
+# Get-NetOU specifies an array of GPO names (GUID) applied in the "gplink" property
+# This can be used to find the information of the GPO with Get-NetGPO
+Get-NetGPO -Name '{GUID_in_gplink}'                        
 
 # Retrieve the GPOs that set "Restricted group" on a machine
 Get-NetGPOGroup -ResolveMemberSIDs 
