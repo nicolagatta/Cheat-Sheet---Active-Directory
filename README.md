@@ -150,7 +150,14 @@ Get-Domain
 Get-DomainSID
 # Get another domain (trust neede)
 Get-Domain -Domain other.domain.FQDN
+# Get Domain policy for current domain (typically: password policy, Kerberos Policy and Domain Paths
+Get-DomainPolicyData
+# Get Domain policy for current domain
+(Get-DomainPolicyData).systemaccess
+# Get Domain policy for other domaincurrent domain
+(Get-DomainPolicyData -Domain other.domain.FQDN).systemaccess
 ```
+
 - **With AD Module**:
 ```powershell
 # Get the Domain information 
