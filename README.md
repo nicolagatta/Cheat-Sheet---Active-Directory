@@ -140,6 +140,27 @@ xfreerdp /u:username /p:password /v:172.16.20.20 /drive:/home/username/Desktop/T
 
 # Enumeration
 
+### Domain info Enumeration
+
+- **With PowerView**:
+```powershell
+# Get the Domain information 
+Get-Domain
+# Get the Domain SID
+Get-DomainSID
+# Get another domain (trust neede)
+Get-Domain -Domain other.domain.FQDN
+```
+- **With AD Module**:
+```powershell
+# Get the Domain information 
+Get-ADDomain
+# Get the Domain SID
+(Get-ADDomain).DomainSID
+# Get another domain (trust neede)
+Get-ADDomain -Identity other.domain.FQDN
+```
+
 ### Users Enumeration
 
 - **With PowerView**:
