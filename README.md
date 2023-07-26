@@ -328,25 +328,25 @@ Find-DomainShare -ExcludeStandard -ExcludePrint -ExcludeIPC -CheckShareAccess
 ```powershell
 
 # Get the organizational units in a domain
-Get-NetOU
+Get-DomainOU
 
 # Get the organizational units in a domain with name
-Get-NetOU | select name
+Get-DomainOU | select name
 
 # Get the organizational units in a domain with full data
-Get-NetOU -FullData                                                         
+Get-DomainOU -FullData                                                         
 
 # Get all computers from "ouiexample". Ouiexample --> organizational Units
-Get-NetOU "ouiexample" | %{Get-NetComputer -ADSpath $_}                     
+Get-DomainOU "ouiexample" | %{Get-NetComputer -ADSpath $_}                     
 
 # Retrieve the list of GPOs present in the current domain
-Get-NetGPO
+Get-DomainGPO
 
 # Retrieve the list of GPOs present in the current domain with displayname
-Get-NetGPO| select displayname
+Get-DomainGPO| select displayname
 
 # Get list of GPO applied to a particular computer
-Get-NetGPO -ComputerName <ComputerName> | select displayname
+Get-DomainGPO -ComputerName <ComputerName> | select displayname
 
 # Find users who have local admin rights over the machine configured by a "Restricted groups" GPO
 Find-GPOComputerAdmin –Computername <ComputerName>
@@ -355,7 +355,7 @@ Find-GPOComputerAdmin –Computername <ComputerName>
 Find-GPOLocation -Identity <user> -Verbose
 
 # Enumerate GPO applied on a specific OU
-# Get-NetOU specifies an array of GPO names (GUID) applied in the "gplink" property
+# Get-DomainOU specifies an array of GPO names (GUID) applied in the "gplink" property
 # This can be used to find the information of the GPO with Get-NetGPO
 Get-NetGPO -Name '{GUID_in_gplink}'                        
 
