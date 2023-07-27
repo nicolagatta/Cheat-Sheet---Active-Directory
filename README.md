@@ -248,37 +248,6 @@ Get-ADComputer -Filter * | select Name
 ```
 
 
-
-### Domain Admins Enumeration
-
-- **With PowerView:**
-```powershell
-# Get the current domain
-Get-NetDomain                                         
-# Get items from another domain
-Get-NetDomain -Domain corporate.local                 
-# Get the domain SID for the current domain
-Get-DomainSID                                         
-# Get domain policy for current domain
-Get-DomainPolicy                                      
-# See Attributes of the Domain Admins Group
-Get-NetGroup -GroupName "Domain Admins" -FullData     
-# Get Members of the Domain Admins group:
-Get-NetGroupMember -GroupName "Domain Admins"         
-```
-- **With AD Module:**
-```powershell
-# Get the current domain
-Get-ADDomain                                         
-# Get item from another domain
-Get-ADDomain -Identity corporate.local                
-# Get the domain SID for the current domain
-(Get-ADDomain).DomainSID                              
-# Get domain policy for current domain
-(Get-DomainPolicy)."system access"                    
-```
-
-
 ### Groups and Members Enumeration
 
 - **With PowerView:**
@@ -327,17 +296,17 @@ Find-DomainShare -ExcludeStandard -ExcludePrint -ExcludeIPC -CheckShareAccess
 - **With PowerView:**
 ```powershell
 
-# Get the organizational units in a domain
+# Get the organizational units in a domain (Full Data)
 Get-DomainOU
 
 # Get the organizational units in a domain with name
 Get-DomainOU | select name
 
-# Get the organizational units in a domain with full data
-Get-DomainOU -FullData                                                         
+# Get all computers from "Servers". From OU "Servers" -> DN attribute -> Get-DomainComputer  (works recursively)
+(Get-DomainOU -Identity "Servers").distinguishedname | %{Get-DomainComputer -ADSpath $_}   | select name
 
-# Get all computers from "ouiexample". Ouiexample --> organizational Units
-Get-DomainOU "ouiexample" | %{Get-NetComputer -ADSpath $_}                     
+# Get all users from "Employees". From OU "Employees" -> DN attribute -> Get-DomainUser
+(Get-DomainOU -Identity "Employees").distinguishedname | %{Get-DomainUser -ADSpath $_}   | select name
 
 # Retrieve the list of GPOs present in the current domain
 Get-DomainGPO
@@ -348,6 +317,9 @@ Get-DomainGPO| select displayname
 # Get list of GPO applied to a particular computer
 Get-DomainGPO -ComputerName <ComputerName> | select displayname
 
+# Get list of GPO applied to a particular user
+Get-DomainGPO -UserName <UserName> | select displayname
+
 # Find users who have local admin rights over the machine configured by a "Restricted groups" GPO
 Find-GPOComputerAdmin –Computername <ComputerName>
 
@@ -357,10 +329,10 @@ Find-GPOLocation -Identity <user> -Verbose
 # Enumerate GPO applied on a specific OU
 # Get-DomainOU specifies an array of GPO names (GUID) applied in the "gplink" property
 # This can be used to find the information of the GPO with Get-NetGPO
-Get-NetGPO -Name '{GUID_in_gplink}'                        
+Get-DomainGPO -Name '{GUID_in_gplink}'                        
 
 # Retrieve the GPOs that set "Restricted group" on a machine
-Get-NetGPOGroup -ResolveMemberSIDs 
+Get-DomainGPOLocalGroup -ResolveMembersToSIDs
 
 # Get Group policy settings for a specific computer
 gpresult /R
