@@ -349,33 +349,29 @@ Get-ADOrganizationalUnit -Filter * -Properties *
 - **With PowerView:**
 ```powershell
 
-# Enumerates the ACLs for the users group (so the list of ACEs that applies to "Users" and resolve GUIDs of ACEs
+# Enumerates the ACLs for a specific object (in thisis case a user)
 # ObjectDN is the target object
 # IdentityRefernce is the usr (or group) that has specific righs on ObjectDN
 # ActiveDirectoryRihts is the list of rights
 # AccessControlType: Allow or deny the rights
-Get-ObjectAcl -SamAccountName "users" -ResolveGUIDs                         
+Get-DomainObjectAcl -SamAccountName "username" -ResolveGUIDs                         
 
-# Enumerates the ACLs for the Domain Admins group
-Get-ObjectAcl -SamAccountName "Domain Admins" -ResolveGUIDs                 
+# Enumerates the ACLs for the Domain Admins group and select only useful data:
+Get-DomainObjectAcl -SamAccountName "Domain admins" -ResolveGUIDs | select SecurityIdentifier,AceType,ActiveDirectoryRights
 
 # Get the acl associated with a specific prefix
-Get-ObjectAcl -ADSprefix 'CN=Administrator,CN=Users' -Verbose               
+Get-DomainObjectAcl -SearchBase 'LDAP://CN=Domain admins,CN=Users,DC=domain,dc=local' -ResolveGUIDs -Verbose | select SecurityIdentifier,AceType,ActiveDirectoryRights
 
-# Find interesting ACLs 
-Invoke-ACLScanner -ResolveGUIDs                                             
+# In a real environment there can be many, many ACLs. Below a command to find only interesting (non default) ACLs
+find-interestingDomainAcl -ResolveGUIDs
+# More readable version                                       
+Find-InterestingDomainAcl -ResolveGUIDs | select ObjectDN,AceType,ActiveDirectoryRights,IdentityReferenceName
 
-# Check for modify rights/permissions for the user group
-Invoke-ACLScanner -ResolveGUIDs | ?{$_.IdentityReference -match "user"}     
+# Find ACLs based on IdentityRefernce (useful to find what we can do as a user or a groupmember)
+Find-InterestingDomainAcl -ResolveGUIDs | ?{$_.IdentityReferenceName -match "myusername"} 
 
-# Check for modify rights/permissions for the RDPUsers group
-Invoke-ACLScanner -ResolveGUIDs | ?{$_.IdentityReference -match "RDPusers"} 
-
-# Check for modify rights/permissions for the RDPUsers group
-Invoke-ACLScanner | select ObjectDN,ActiveDirectoryRights,IdentityReferenceName
-
-# Search of interesting ACL's for the current user
-Invoke-ACLScanner | Where-Object {$_.IdentityReference –eq [System.Security.Principal.WindowsIdentity]::GetCurrent().Name}
+# Show ACL for a network share (SYSVOL in the example)
+ Get-PathAcl -Path "\\domain.local\sysvol"
 ```
 
 ### Domain Trust Mapping
@@ -383,13 +379,28 @@ Invoke-ACLScanner | Where-Object {$_.IdentityReference –eq [System.Security.Pr
 - **With PowerView:**
 ```powershell
 # Get the list of all trusts within the current domain
-Get-NetDomainTrust
+Get-DomainTrust
                      
 # Get the list of all trusts within the indicated domain
-Get-NetDomainTrust -Domain us.domain.corporation.local
+Get-DomainTrust -Domain us.domain.corporation.local
 
-# Get the list of all trusts for each domain it finds
-Get-DomainTrustMapping
+# Get information of the current Forest
+Get-Forest
+
+# Get information of the indicated forest
+Get-Forest -Forest eurocorp.local
+
+# List all Domains in the current forest
+Get-ForestDomain
+
+# List all trust of the domains of the current forest
+Get-ForestDomain | %{Get-DomainTrust -Domain $_.Name}
+
+# Get Global Catalogs in the current Forest
+Get-ForestGlobalCatalog
+
+# Map all forest trust
+Get-ForestTrust
 ```
 **Example:**
 
@@ -403,30 +414,10 @@ Get-ADTrust -Filter *
 Get-ADTrust -Identity us.domain.corporation.local                           
 ```
 
-### Domain Forest Enumeration
-
-- **With PowerView:**
-```powershell
-# Get all domains in the current forest
-Get-NetForestDomain                                                                
-# Get all domains in the current forest
-Get-NetForestDomain -Forest corporation.local                                      
-# Map all trusts
-Get-NetForestDomain -Verbose | Get-NetDomainTrust                                  
-# Map only external trusts
-Get-NetForestDomain -Verbose | Get-NetDomainTrust | ?{$_.TrustType -eq 'External'}
-```
 **Example:**
 
 ![Main Logo](images/Example_trust02.PNG 'Example02')
 
-- **With AD Module:**
-```powershell
-# Get all domains in the current forest
-(Get-ADForest).Domains                                                                                                 
-# Map only external trusts
-(Get-ADForest).Domains | %{Get-ADTrust -Filter '(intraForest -ne $True) -and (ForestTransitive -ne $True)' -Server $_} 
-```
 
 ### User Hunting
 
