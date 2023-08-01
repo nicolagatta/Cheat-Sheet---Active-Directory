@@ -586,6 +586,7 @@ Invoke-ServiceAbuse -Name 'SVC_xxx'
 Invoke-ServiceAbuse -Name 'SVC_xxx' -UserName 'corporate\student01'
 
 ```
+
 - **With PrivEsc:**
 ```powershell
 # Performs all checks
@@ -622,7 +623,6 @@ Enter-PSSession -ComputerName -Sessions $sess
 
 # External script that find machines in the domain the current user has local admin access to
 Find-PSRemotingLocalAdminAccess
-
 ```
 
 - **Winrs and winrm.vbs:**
