@@ -30,6 +30,7 @@ Last update: **12 Oct 2022**
 - [Persistence](#persistence)
   -  [Golden Ticket](#golden-ticket)
   -  [Silver Ticket](#silver-ticket)
+  -  [Diamond Ticket](#diamond-ticket)
   -  [Skeleton Key](#skeleton-key)
   -  [Directory Services Restore Mode (DSRM)](#directory-services-restore-mode-dsrm))
   -  [AdminSDHolder](#adminsdholder)
