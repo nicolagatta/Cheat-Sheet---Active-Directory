@@ -451,8 +451,8 @@ Find-DomainLocalGroupMember -Domain <domain>
 
 # Looks for machines where a domain administrator (or specified user/groups) is logged on
 # It enumerates users and computers, then use Get-NetSession and Get-NetLoggedon to find sessions
-FindDomainUserLocation -Verbose
-FindDomainUserLocation -UserGroupIdentity "RDPUsers"
+Find-DomainUserLocation -Verbose
+Find-DomainUserLocation -UserGroupIdentity "RDPUsers"
 
 # Confirm access to the machine as an administrator
 Invoke-UserHunter -CheckAccess                                    
